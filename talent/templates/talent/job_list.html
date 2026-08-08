@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Job List</title>
+</head>
+<body>
+
+<h1>Available Jobs</h1>
+
+{% for job in jobs %}
+
+<div style="border:1px solid #ccc; padding:10px; margin:10px;">
+
+   <h3>
+    <a href="/jobs/{{ job.id }}/">
+        {{ job.title }}
+    </a>
+</h3>
+
+    <p>
+        Department:
+        {{ job.department }}
+    </p>
+
+    <p>
+        {{ job.description }}
+    </p>
+
+</div>
+
+{% empty %}
+
+<p>No jobs available.</p>
+
+{% endfor %}
+
+</body>
+</html>

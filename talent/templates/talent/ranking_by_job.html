@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ job.title }}</title>
+</head>
+<body>
+
+<h1>{{ job.title }}</h1>
+
+<table border="1">
+
+<tr>
+    <th>Rank</th>
+    <th>Candidate</th>
+    <th>Score</th>
+    <th>Recommendation</th>
+</tr>
+
+{% for app in applications %}
+
+<tr>
+
+<td>
+{{ forloop.counter }}
+</td>
+
+<td>
+{{ app.candidate.full_name }}
+</td>
+
+<td>
+{{ app.ai_score }}
+</td>
+
+<td>
+{{ app.ai_feedback }}
+</td>
+
+</tr>
+
+{% endfor %}
+
+</table>
+
+</body>
+</html>

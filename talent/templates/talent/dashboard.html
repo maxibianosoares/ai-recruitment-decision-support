@@ -1,0 +1,39 @@
+<h1>AI Recruitment Dashboard</h1>
+
+<h3>Total Candidates: {{ total }}</h3>
+
+<ul>
+    <li>Highly Recommended: {{ highly }}</li>
+    <li>Recommended: {{ recommended }}</li>
+    <li>Consider: {{ consider }}</li>
+    <li>Not Recommended: {{ not_recommended }}</li>
+</ul>
+
+<hr>
+
+<table border="1">
+
+<tr>
+    <th>Rank</th>
+    <th>Name</th>
+    <th>Score</th>
+    <th>Decision</th>
+</tr>
+
+{% for c in candidates %}
+
+<tr>
+
+    <td>{{ forloop.counter }}</td>
+
+    <td>{{ c.candidate_name }}</td>
+
+    <td>{{ c.final_score }}</td>
+
+    <td>{{ c.decision }}</td>
+
+</tr>
+
+{% endfor %}
+
+</table>

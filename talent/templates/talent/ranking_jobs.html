@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Job Rankings</title>
+</head>
+<body>
+
+<h1>Ranking by Job</h1>
+
+<ul>
+
+{% for job in jobs %}
+
+<li>
+
+<a href="/ranking-jobs/{{ job.id }}/">
+
+{{ job.title }}
+
+</a>
+
+</li>
+
+{% endfor %}
+
+</ul>
+
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Apply Job</title>
+</head>
+<body>
+
+<h1>Apply for {{ job.title }}</h1>
+
+<form method="POST" enctype="multipart/form-data">
+
+    {% csrf_token %}
+
+    <p>
+        Full Name
+    </p>
+
+    <input
+        type="text"
+        name="full_name"
+        required
+    >
+
+    <br><br>
+
+    <p>
+        Email
+    </p>
+
+    <input
+        type="email"
+        name="email"
+        required
+    >
+<p>CV PDF</p>
+
+<input
+    type="file"
+    name="cv_file"
+    accept=".pdf"
+    required
+>
+    <br><br>
+
+    <button type="submit">
+        Submit Application
+    </button>
+
+</form>
+
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Candidate Ranking</title>
+</head>
+<body>
+
+<h1>Candidate Ranking Dashboard</h1>
+
+<table border="1">
+
+    <tr>
+        <th>Rank</th>
+        <th>Candidate</th>
+        <th>Job</th>
+        <th>Score</th>
+        <th>Recommendation</th>
+    </tr>
+
+    {% for app in applications %}
+
+    <tr>
+
+        <td>{{ forloop.counter }}</td>
+
+       <td>
+
+        <a href="{% url 'candidate_detail' app.id %}">
+
+        {{ app.candidate.full_name }}
+
+        </a>
+
+        </td>
+        <td>
+            {{ app.job.title }}
+        </td>
+
+        <td>
+            {{ app.ai_score }}
+        </td>
+
+        <td>
+            {{ app.ai_feedback }}
+        </td>
+
+    </tr>
+
+    {% endfor %}
+
+</table>
+
+</body>
+</html>
