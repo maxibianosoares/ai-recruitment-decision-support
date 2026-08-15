@@ -8,6 +8,7 @@ class Retriever:
 
         self.index, self.metadata = load_vector_store()
 
+
     def search(
         self,
         query,
@@ -16,16 +17,22 @@ class Retriever:
 
         query_vector = embedding_engine.encode(query)
 
-        query_vector = query_vector.reshape(1, -1)
+        query_vector = query_vector.reshape(
+            1,
+            -1
+        )
+
 
         distances, indices = self.index.search(
             query_vector,
             top_k
         )
 
+
         results = []
 
-        for score, idx in zip(
+
+        for distance, idx in zip(
             distances[0],
             indices[0]
         ):
@@ -33,11 +40,15 @@ class Retriever:
             if idx == -1:
                 continue
 
+
             item = self.metadata[idx].copy()
 
-            item["distance"] = float(score)
+
+            item["score"] = float(distance)
+
 
             results.append(item)
+
 
         return results
 

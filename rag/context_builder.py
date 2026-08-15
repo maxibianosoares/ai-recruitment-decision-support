@@ -1,18 +1,34 @@
-def build_context(results):
+def build_context(documents):
 
-    contexts = []
+    context_parts = []
 
-    for item in results:
 
-        contexts.append(
+    for document in documents:
+
+        source = document.get(
+            "source",
+            "Unknown"
+        )
+
+        text = document.get(
+            "text",
+            ""
+        )
+
+
+        context_parts.append(
 
             f"""
 Source:
-{item["source"]}
+{source}
 
-Content:
-{item["text"]}
+Evidence:
+{text}
 """
+
         )
 
-    return "\n\n".join(contexts)
+
+    return "\n\n".join(
+        context_parts
+    )
