@@ -1,8 +1,15 @@
 import json
 import re
-import ollama
+from ollama import Client
+
 
 MODEL_NAME = "gemma3:12b"
+
+OLLAMA_HOST = "http://127.0.0.1:11434"
+
+client = Client(
+    host=OLLAMA_HOST
+)
 
 
 def clean_response(text):
@@ -44,7 +51,7 @@ def generate(
     num_predict=700
 ):
 
-    response = ollama.chat(
+    response = client.chat(
 
         model=MODEL_NAME,
 
@@ -85,9 +92,15 @@ def generate_json(
                 num_predict=num_predict
             )
 
-            print(f"\n===== LLM RESPONSE ({i+1}) =====\n")
+            print(
+                f"\n===== LLM RESPONSE ({i+1}) =====\n"
+            )
+
             print(content)
-            print("\n===============================\n")
+
+            print(
+                "\n===============================\n"
+            )
 
             return extract_json(content)
 
@@ -95,11 +108,16 @@ def generate_json(
 
             last_error = e
 
-            print(f"Retry {i+1} failed : {e}")
+            print(
+                f"Retry {i+1} failed : {e}"
+            )
 
-    print(f"LLM failed : {last_error}")
+    print(
+        f"LLM failed : {last_error}"
+    )
 
     if default is not None:
+
         return default
 
     return {

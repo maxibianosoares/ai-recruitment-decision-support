@@ -60,6 +60,20 @@ class RAGPipeline:
         )
 
         coverage_status = coverage_result["status"]
+
+        if coverage_status == "unsupported":
+
+            final_status = "unsupported"
+
+        elif coverage_status == "partially_supported":
+
+            final_status = "partially_supported"
+
+        else:
+
+            final_status = "supported"
+
+            
         coverage = coverage_result["coverage"]
 
         print("\n===== EVIDENCE COVERAGE =====")
