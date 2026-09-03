@@ -60,7 +60,7 @@ ROOT_URLCONF = 'core.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -119,5 +119,6 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 GEMINI_MODEL="gemini-2.5-flash"
+GEMINI_API_KEY="AQ.Ab8RN6LcbZcW6PGVvACZ1PG9FppBNequJmhGQzUp4QIaM7KI9Q"
 
 LLM_PROVIDER="local"

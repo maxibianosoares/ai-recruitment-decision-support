@@ -1,44 +1,44 @@
-# import json
+import json
 
-# from google import genai
+from google import genai
 
-# from django.conf import settings
-
-
-# client = genai.Client(
-#     api_key=settings.GEMINI_API_KEY
-# )
+from django.conf import settings
 
 
-# def generate_json(
-#     prompt,
-#     default=None
-# ):
+client = genai.Client(
+    api_key=settings.GEMINI_API_KEY
+)
 
-#     try:
 
-#         response = client.models.generate_content(
+def generate_json(
+    prompt,
+    default=None
+):
 
-#             model=settings.GEMINI_MODEL,
+    try:
 
-#             contents=prompt
+        response = client.models.generate_content(
 
-#         )
+            model=settings.GEMINI_MODEL,
 
-#         text = response.text
+            contents=prompt
 
-#         text = text.replace(
-#             "```json",
-#             ""
-#         )
+        )
 
-#         text = text.replace(
-#             "```",
-#             ""
-#         )
+        text = response.text
 
-#         return json.loads(text)
+        text = text.replace(
+            "```json",
+            ""
+        )
 
-#     except Exception:
+        text = text.replace(
+            "```",
+            ""
+        )
 
-#         return default
+        return json.loads(text)
+
+    except Exception:
+
+        return default

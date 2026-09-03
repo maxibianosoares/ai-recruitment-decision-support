@@ -1,0 +1,92 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#C8102E">
+    <title>{% block title %}AI Civil Service Recruitment{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root { --tl-red:#C8102E; --tl-yellow:#F9E300; --tl-black:#111111; --tl-white:#fff; --ink:#172033; --muted:#667085; --surface:#f6f8fb; }
+        body { background:var(--surface); color:var(--ink); min-height:100vh; }
+        .top-stripe { height:5px; background:linear-gradient(90deg,var(--tl-black) 0 42%,var(--tl-yellow) 42% 58%,var(--tl-red) 58% 100%); }
+        .navbar-brand-mark { width:38px;height:38px;border-radius:10px;background:var(--tl-red);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:800;position:relative;overflow:hidden; }
+        .navbar-brand-mark:after { content:""; width:0;height:0;border-top:9px solid transparent;border-bottom:9px solid transparent;border-left:15px solid var(--tl-yellow);position:absolute;left:11px; }
+        .app-navbar { background:#fff; box-shadow:0 2px 14px rgba(16,24,40,.08); }
+        .sidebar { min-height:calc(100vh - 61px); background:#fff; border-right:1px solid #e7eaf0; }
+        .sidebar .nav-link { color:#475467; border-radius:10px; padding:.68rem .8rem; margin:.12rem 0; font-weight:500; }
+        .sidebar .nav-link:hover { background:#fff4f5; color:var(--tl-red); }
+        .sidebar .nav-link.active { background:#fff0f2; color:var(--tl-red); font-weight:700; border-left:3px solid var(--tl-red); }
+        .sidebar-label { font-size:.68rem; letter-spacing:.08em; color:#98a2b3; font-weight:800; text-transform:uppercase; margin:.9rem .7rem .4rem; }
+        .main-content { padding:30px; }
+        .page-card,.stat-card { background:#fff; border:1px solid #e7eaf0; border-radius:16px; box-shadow:0 4px 18px rgba(16,24,40,.05); }
+        .page-header { margin-bottom:24px; }
+        .page-kicker { color:var(--tl-red); font-size:.78rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+        .btn-tl { background:var(--tl-red); border-color:var(--tl-red); color:#fff; }
+        .btn-tl:hover { background:#a90d26; border-color:#a90d26; color:#fff; }
+        .badge-tl { background:#fff0f2;color:var(--tl-red); }
+        .footer { background:#fff;border-top:1px solid #e7eaf0;color:#98a2b3; }
+        .table thead th { color:#667085; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; background:#f8fafc; }
+        .form-control,.form-select { border-radius:10px; padding:.65rem .8rem; }
+        .form-control:focus,.form-select:focus { border-color:#e58a99; box-shadow:0 0 0 .2rem rgba(200,16,46,.10); }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<div class="top-stripe"></div>
+<nav class="navbar navbar-expand-lg app-navbar sticky-top">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="/accounts/dashboard/">
+      <span class="navbar-brand-mark" aria-hidden="true"></span>
+      <span><span class="d-block lh-1">AI Civil Service</span><small class="text-muted fw-normal">Timor-Leste</small></span>
+    </a>
+    <div class="ms-auto d-flex align-items-center gap-3">
+      {% if request.user.is_authenticated %}
+      <span class="small text-muted d-none d-md-inline"><i class="bi bi-person-circle me-1"></i>{{ request.user.username }}</span>
+      <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+<div class="container-fluid">
+  <div class="row">
+    {% if request.user.is_authenticated %}
+    <aside class="col-md-3 col-lg-2 sidebar p-3">
+      <div class="sidebar-label">Platform</div>
+      <nav class="nav flex-column">
+        <a href="/accounts/dashboard/" class="nav-link"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a>
+        <a href="{% url 'rag_chat' %}" class="nav-link"><i class="bi bi-robot me-2"></i>AI Assistant</a>
+      </nav>
+      <div class="sidebar-label">Recruitment</div>
+      <nav class="nav flex-column">
+        <a href="{% url 'job_list' %}" class="nav-link"><i class="bi bi-briefcase me-2"></i>Job Vacancies</a>
+        <a href="{% url 'create_job' %}" class="nav-link"><i class="bi bi-plus-circle me-2"></i>Create Job</a>
+        <a href="{% url 'candidate_ranking' %}" class="nav-link"><i class="bi bi-bar-chart-line me-2"></i>Candidate Ranking</a>
+        <a href="{% url 'ranking_jobs' %}" class="nav-link"><i class="bi bi-list-ol me-2"></i>Ranking by Job</a>
+      </nav>
+      <div class="sidebar-label">Administration</div>
+      <nav class="nav flex-column">
+        <a href="{% url 'user_list' %}" class="nav-link"><i class="bi bi-people me-2"></i>Users</a>
+        <a href="{% url 'profile' %}" class="nav-link"><i class="bi bi-person-vcard me-2"></i>My Profile</a>
+      </nav>
+      <div class="mt-4 p-3 rounded-3" style="background:#111;color:#fff">
+        <div class="small fw-bold">República Democrática de Timor-Leste</div>
+        <div class="small text-white-50 mt-1">Civil Service Decision Support</div>
+      </div>
+    </aside>
+    {% endif %}
+    <main class="{% if request.user.is_authenticated %}col-md-9 col-lg-10{% else %}col-12{% endif %}">
+      <div class="main-content">{% block content %}{% endblock %}</div>
+    </main>
+  </div>
+</div>
+<footer class="footer py-3 text-center small">
+  AI Civil Service Recruitment & Decision Support Platform · Timor-Leste<br>
+  <span>AI supports evidence-grounded decisions. Final recruitment decisions remain with human officers.</span>
+</footer>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% block javascript %}{% endblock %}
+</body>
+</html>
