@@ -1,0 +1,84 @@
+{
+    "metrics": {
+        "total_questions": 7,
+        "correct": 7,
+        "accuracy": 1.0,
+        "average_coverage": 0.5714285714285714,
+        "average_evidence_score": 72.02857142857142,
+        "grounded_rate": 0.8571428571428571,
+        "false_acceptance": 0,
+        "false_rejection": 0
+    },
+    "results": [
+        {
+            "id": "S01",
+            "question": "Can AI replace human recruiter?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 69.86,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "S02",
+            "question": "What information should every AI recommendation provide?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 71.66,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "S03",
+            "question": "What is the purpose of the AI recruitment policy?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 84.37,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "P01",
+            "question": "What does the AI recruitment system do and what salary should the selected candidate receive?",
+            "expected": "partially_supported",
+            "actual": "partially_supported",
+            "coverage": 0.5,
+            "evidence_score": 72.46,
+            "grounded": false,
+            "correct": true
+        },
+        {
+            "id": "P02",
+            "question": "Can AI rank candidates and determine their monthly salary?",
+            "expected": "partially_supported",
+            "actual": "partially_supported",
+            "coverage": 0.5,
+            "evidence_score": 65.27,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "U01",
+            "question": "What is the monthly salary of a civil servant in Timor-Leste?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 67.46,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "U02",
+            "question": "Who is the current President of Timor-Leste?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 73.12,
+            "grounded": true,
+            "correct": true
+        }
+    ]
+}

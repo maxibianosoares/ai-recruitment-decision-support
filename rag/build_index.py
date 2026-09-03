@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from .document_loader import document_loader
 from .text_splitter import text_splitter
 from .embedding import embedding_engine
@@ -7,46 +9,143 @@ import numpy as np
 import faiss
 
 
-def build_index(path):
+DOCUMENTS_PATH = Path(
+    "knowledge_base/documents"
+)
+
+
+def build_index():
 
     # =====================================
-    # Load Document
+    # 1. Find all supported documents
     # =====================================
 
-    text = document_loader.load(path)
+    files = sorted(
 
-    if not text:
+        [
+
+            path
+
+            for path in DOCUMENTS_PATH.iterdir()
+
+            if path.is_file()
+            and path.suffix.lower()
+            in [".pdf", ".docx", ".txt", ".md"]
+
+        ]
+
+    )
+
+    if not files:
+
         raise ValueError(
-            "Document contains no text."
+            "No supported documents found."
         )
 
+    print()
+    print("=" * 60)
+    print("BUILDING RAG VECTOR INDEX")
+    print("=" * 60)
+    print(
+        f"Documents found: {len(files)}"
+    )
+    print()
+
     # =====================================
-    # Split Document
+    # 2. Load and split ALL documents
     # =====================================
 
-    chunks = text_splitter.split(text)
+    all_chunks = []
 
-    if not chunks:
-        raise ValueError(
-            "No text chunks generated."
+    metadata = []
+
+    chunk_id = 0
+
+    for path in files:
+
+        print(
+            f"Loading: {path.name}"
         )
 
+        text = document_loader.load(
+            path
+        )
+
+        if not text.strip():
+
+            print(
+                f"WARNING: No text extracted from {path.name}"
+            )
+
+            continue
+
+        chunks = text_splitter.split(
+            text
+        )
+
+        print(
+            f"  Chunks: {len(chunks)}"
+        )
+
+        for chunk in chunks:
+
+            all_chunks.append(
+                chunk
+            )
+
+            metadata.append({
+
+                "id": chunk_id,
+
+                "text": chunk,
+
+                "source": str(path)
+
+            })
+
+            chunk_id += 1
+
     # =====================================
-    # Generate Embeddings
+    # 3. Validate chunks
+    # =====================================
+
+    if not all_chunks:
+
+        raise ValueError(
+            "No chunks generated."
+        )
+
+    print()
+    print(
+        f"Total chunks: {len(all_chunks)}"
+    )
+
+    # =====================================
+    # 4. Generate embeddings
     # =====================================
 
     embeddings = []
 
-    for chunk in chunks:
+    for i, chunk in enumerate(
+        all_chunks
+    ):
 
         vector = embedding_engine.encode(
             chunk
         )
 
-        embeddings.append(vector)
+        embeddings.append(
+            vector
+        )
+
+        if (i + 1) % 10 == 0:
+
+            print(
+                f"Embedded: {i + 1}/{len(all_chunks)}"
+            )
 
     # =====================================
-    # Convert to NumPy
+    # 5. Convert to NumPy
     # =====================================
 
     embeddings = np.array(
@@ -55,14 +154,16 @@ def build_index(path):
     )
 
     if embeddings.shape[0] == 0:
+
         raise ValueError(
             "No embeddings generated."
         )
 
     # =====================================
-    # Normalize Embeddings
+    # 6. Normalize embeddings
     #
-    # Required for Cosine Similarity
+    # Cosine similarity:
+    # normalized vectors + Inner Product
     # =====================================
 
     faiss.normalize_L2(
@@ -70,24 +171,17 @@ def build_index(path):
     )
 
     # =====================================
-    # Get Embedding Dimension
+    # 7. Create FAISS index
     # =====================================
 
     dimension = embeddings.shape[1]
-
-    # =====================================
-    # Create FAISS Index
-    #
-    # Inner Product + normalized vectors
-    # = Cosine Similarity
-    # =====================================
 
     index = faiss.IndexFlatIP(
         dimension
     )
 
     # =====================================
-    # Add Embeddings
+    # 8. Add ALL embeddings
     # =====================================
 
     index.add(
@@ -95,25 +189,7 @@ def build_index(path):
     )
 
     # =====================================
-    # Metadata
-    # =====================================
-
-    metadata = []
-
-    for i, chunk in enumerate(chunks):
-
-        metadata.append({
-
-            "id": i,
-
-            "text": chunk,
-
-            "source": path
-
-        })
-
-    # =====================================
-    # Save Vector Store
+    # 9. Save vector store
     # =====================================
 
     save_vector_store(
@@ -121,18 +197,61 @@ def build_index(path):
         metadata
     )
 
+    # =====================================
+    # 10. Summary
+    # =====================================
+
+    print()
+    print("=" * 60)
+    print("VECTOR DATABASE CREATED")
+    print("=" * 60)
+
     print(
-        "Vector database created successfully."
+        f"Documents : {len(files)}"
     )
 
     print(
-        f"Documents: {len(chunks)}"
+        f"Chunks    : {len(all_chunks)}"
     )
 
     print(
-        f"Embedding dimension: {dimension}"
+        f"Vectors   : {index.ntotal}"
     )
 
     print(
-        f"FAISS vectors: {index.ntotal}"
+        f"Dimension : {dimension}"
     )
+
+    print("=" * 60)
+
+    # =====================================
+    # 11. Document distribution
+    # =====================================
+
+    print()
+    print("DOCUMENT DISTRIBUTION")
+    print("-" * 60)
+
+    for path in files:
+
+        count = sum(
+
+            1
+
+            for item in metadata
+
+            if item["source"]
+            == str(path)
+
+        )
+
+        print(
+            f"{path.name:<45} {count} chunks"
+        )
+
+    print()
+
+
+if __name__ == "__main__":
+
+    build_index()

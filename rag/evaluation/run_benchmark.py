@@ -2,6 +2,7 @@ import json
 import sys
 from pathlib import Path
 
+
 # =========================================================
 # MAKE PROJECT ROOT IMPORTABLE
 # =========================================================
@@ -20,11 +21,32 @@ from rag.rag_pipeline import rag_pipeline
 
 
 # =========================================================
-# LOAD BENCHMARK
+# BENCHMARK FILE
 # =========================================================
 
-BENCHMARK_FILE = PROJECT_ROOT / "benchmark_40.json"
+BENCHMARK_FILE = (
+    PROJECT_ROOT
+    / "rag"
+    / "evaluation"
+    / "benchmark_40.json"
+)
 
+
+# =========================================================
+# OUTPUT FILE
+# =========================================================
+
+OUTPUT_FILE = (
+    PROJECT_ROOT
+    / "rag"
+    / "evaluation"
+    / "benchmark_40_results.json"
+)
+
+
+# =========================================================
+# LOAD BENCHMARK
+# =========================================================
 
 def load_benchmark():
 
@@ -51,9 +73,11 @@ def run_benchmark():
 
     print()
     print("=" * 70)
-    print("RAG BENCHMARK")
+    print("RAG BENCHMARK — PHASE 5")
     print("=" * 70)
-    print(f"Total questions: {total}")
+    print(
+        f"Total questions: {total}"
+    )
     print()
 
     for index, item in enumerate(
@@ -62,20 +86,26 @@ def run_benchmark():
     ):
 
         question_id = item["id"]
+
         question = item["question"]
-        expected = item["expected_status"]
+
+        expected = item["expected"]
 
         print()
         print("-" * 70)
+
         print(
             f"[{index}/{total}] {question_id}"
         )
+
         print(
             f"QUESTION: {question}"
         )
+
         print(
             f"EXPECTED: {expected}"
         )
+
         print("-" * 70)
 
         try:
@@ -84,9 +114,22 @@ def run_benchmark():
                 question
             )
 
+            # -------------------------------------------------
+            # ACTUAL STATUS
+            # -------------------------------------------------
+
             actual = result.get(
                 "coverage_status",
                 "unknown"
+            )
+
+            # -------------------------------------------------
+            # METRICS
+            # -------------------------------------------------
+
+            coverage = result.get(
+                "coverage",
+                0
             )
 
             evidence_score = result.get(
@@ -99,14 +142,17 @@ def run_benchmark():
                 False
             )
 
-            coverage = result.get(
-                "coverage",
-                0
-            )
+            # -------------------------------------------------
+            # CORRECT CLASSIFICATION
+            # -------------------------------------------------
 
             correct = (
                 actual == expected
             )
+
+            # -------------------------------------------------
+            # PRINT RESULT
+            # -------------------------------------------------
 
             print(
                 f"ACTUAL: {actual}"
@@ -117,7 +163,8 @@ def run_benchmark():
             )
 
             print(
-                f"EVIDENCE SCORE: {evidence_score}"
+                f"EVIDENCE SCORE: "
+                f"{evidence_score}"
             )
 
             print(
@@ -128,6 +175,10 @@ def run_benchmark():
                 f"RESULT: "
                 f"{'PASS' if correct else 'FAIL'}"
             )
+
+            # -------------------------------------------------
+            # STORE RESULT
+            # -------------------------------------------------
 
             results.append({
 
@@ -198,12 +249,16 @@ def run_benchmark():
 
 
 # =========================================================
-# METRICS
+# CALCULATE METRICS
 # =========================================================
 
 def calculate_metrics(results):
 
     total = len(results)
+
+    # =====================================================
+    # ACCURACY
+    # =====================================================
 
     correct = sum(
         1
@@ -211,11 +266,15 @@ def calculate_metrics(results):
         if r["correct"]
     )
 
-    grounded = sum(
-        1
-        for r in results
-        if r["grounded"]
+    accuracy = (
+        correct / total
+        if total
+        else 0
     )
+
+    # =====================================================
+    # EVIDENCE COVERAGE
+    # =====================================================
 
     coverage_sum = sum(
         r["coverage"]
@@ -228,19 +287,31 @@ def calculate_metrics(results):
         else 0
     )
 
+    # =====================================================
+    # EVIDENCE SCORE
+    # =====================================================
+
     average_evidence_score = (
+
         sum(
             r["evidence_score"]
             for r in results
-        ) / total
+        )
+
+        / total
+
         if total
         else 0
     )
 
-    accuracy = (
-        correct / total
-        if total
-        else 0
+    # =====================================================
+    # GROUNDEDNESS
+    # =====================================================
+
+    grounded = sum(
+        1
+        for r in results
+        if r["grounded"]
     )
 
     grounded_rate = (
@@ -249,7 +320,64 @@ def calculate_metrics(results):
         else 0
     )
 
-    return {
+    # =====================================================
+    # FALSE ACCEPTANCE
+    #
+    # Expected:
+    #     unsupported
+    #
+    # Actual:
+    #     supported / partially_supported
+    #
+    # Meaning:
+    # RAG accepted evidence for a question that should
+    # have been rejected.
+    # =====================================================
+
+    false_acceptance = sum(
+
+        1
+
+        for r in results
+
+        if (
+            r["expected"] == "unsupported"
+            and r["actual"] != "unsupported"
+        )
+
+    )
+
+    # =====================================================
+    # FALSE REJECTION
+    #
+    # Expected:
+    #     supported
+    #
+    # Actual:
+    #     unsupported
+    #
+    # Meaning:
+    # RAG rejected evidence that should have been accepted.
+    # =====================================================
+
+    false_rejection = sum(
+
+        1
+
+        for r in results
+
+        if (
+            r["expected"] == "supported"
+            and r["actual"] == "unsupported"
+        )
+
+    )
+
+    # =====================================================
+    # METRICS OBJECT
+    # =====================================================
+
+    metrics = {
 
         "total_questions":
             total,
@@ -267,9 +395,113 @@ def calculate_metrics(results):
             average_evidence_score,
 
         "grounded_rate":
-            grounded_rate
+            grounded_rate,
+
+        "false_acceptance":
+            false_acceptance,
+
+        "false_rejection":
+            false_rejection
 
     }
+
+    return metrics
+
+
+# =========================================================
+# PRINT SUMMARY
+# =========================================================
+
+def print_summary(metrics):
+
+    print()
+    print("=" * 70)
+    print("PHASE 5 — RAG BENCHMARK SUMMARY")
+    print("=" * 70)
+
+    print(
+        f"Questions            : "
+        f"{metrics['total_questions']}"
+    )
+
+    print(
+        f"Correct              : "
+        f"{metrics['correct']}"
+    )
+
+    print(
+        f"Accuracy             : "
+        f"{metrics['accuracy']:.4f}"
+    )
+
+    print(
+        f"Evidence Coverage    : "
+        f"{metrics['average_coverage']:.4f}"
+    )
+
+    print(
+        f"Evidence Score       : "
+        f"{metrics['average_evidence_score']:.2f}"
+    )
+
+    print(
+        f"Groundedness         : "
+        f"{metrics['grounded_rate']:.4f}"
+    )
+
+    print(
+        f"False Acceptance     : "
+        f"{metrics['false_acceptance']}"
+    )
+
+    print(
+        f"False Rejection      : "
+        f"{metrics['false_rejection']}"
+    )
+
+    print("=" * 70)
+
+
+# =========================================================
+# SAVE RESULTS
+# =========================================================
+
+def save_results(
+    metrics,
+    results
+):
+
+    output = {
+
+        "metrics":
+            metrics,
+
+        "results":
+            results
+
+    }
+
+    with open(
+        OUTPUT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            output,
+            f,
+            indent=4,
+            ensure_ascii=False
+        )
+
+    print()
+    print(
+        f"Results saved to:"
+    )
+
+    print(
+        OUTPUT_FILE
+    )
 
 
 # =========================================================
@@ -284,68 +516,11 @@ if __name__ == "__main__":
         results
     )
 
-    print()
-    print("=" * 70)
-    print("BENCHMARK SUMMARY")
-    print("=" * 70)
-
-    print(
-        f"Questions           : "
-        f"{metrics['total_questions']}"
+    print_summary(
+        metrics
     )
 
-    print(
-        f"Correct             : "
-        f"{metrics['correct']}"
-    )
-
-    print(
-        f"Accuracy            : "
-        f"{metrics['accuracy']:.4f}"
-    )
-
-    print(
-        f"Average Coverage    : "
-        f"{metrics['average_coverage']:.4f}"
-    )
-
-    print(
-        f"Average Evidence    : "
-        f"{metrics['average_evidence_score']:.4f}"
-    )
-
-    print(
-        f"Grounded Rate       : "
-        f"{metrics['grounded_rate']:.4f}"
-    )
-
-    print("=" * 70)
-
-    output_file = (
-        PROJECT_ROOT
-        / "rag"
-        / "evaluation"
-        / "benchmark_40_results.json"
-    )
-
-    with open(
-        output_file,
-        "w",
-        encoding="utf-8"
-    ) as f:
-
-        json.dump(
-            {
-                "metrics": metrics,
-                "results": results
-            },
-            f,
-            indent=4,
-            ensure_ascii=False
-        )
-
-    print()
-    print(
-        f"Results saved to: "
-        f"{output_file}"
+    save_results(
+        metrics,
+        results
     )
