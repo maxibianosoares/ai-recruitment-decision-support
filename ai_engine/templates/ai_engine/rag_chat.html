@@ -1,5 +1,63 @@
 {% extends 'base.html' %}
-{% block title %}AI Asistant{% endblock %}
+{% block title %}AI Assistant · AI Civil Service{% endblock %}
+
+{% block extra_css %}
+<style>
+.page{max-width:900px}
+.header{margin-bottom:24px}
+.assistant-badge{display:inline-flex;align-items:center;gap:6px;background:#fff0f2;color:var(--tl-red);font-size:.78rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:.35rem .75rem;border-radius:999px;margin-bottom:12px}
+.header h1{font-weight:800;color:var(--ink)}
+.header p{color:var(--muted);margin-bottom:0}
+.card{background:#fff;border:1px solid #e7eaf0;border-radius:16px;box-shadow:0 4px 18px rgba(16,24,40,.05);padding:24px;margin-bottom:20px}
+.question-label{font-weight:600;color:var(--ink);margin-bottom:.5rem;display:block}
+.input-row{display:flex;gap:10px}
+.input-row input{flex:1;border:1px solid #d0d5dd;border-radius:10px;padding:.65rem .9rem}
+.input-row input:focus{outline:none;border-color:#e58a99;box-shadow:0 0 0 .2rem rgba(200,16,46,.10)}
+.input-row button{background:var(--tl-red);border:1px solid var(--tl-red);color:#fff;border-radius:10px;padding:.65rem 1.25rem;font-weight:600}
+.input-row button:hover{background:#a90d26}
+.input-row button:disabled{opacity:.6;cursor:not-allowed}
+#loading{display:flex;align-items:center;gap:10px;color:var(--muted);padding:14px 0}
+.spinner{width:18px;height:18px;border:3px solid #e7eaf0;border-top-color:var(--tl-red);border-radius:50%;display:inline-block;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#error:not(:empty){background:#fff0f2;color:var(--tl-red);border:1px solid #f3c6cd;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-weight:500}
+.answer-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.answer-header h2{font-size:1.1rem;font-weight:800;color:var(--ink);margin:0}
+.gemma-label{font-size:.72rem;font-weight:700;color:var(--muted);background:var(--surface);padding:.25rem .6rem;border-radius:999px}
+.answer-box{background:var(--surface);border-radius:12px;padding:16px;margin-bottom:18px}
+.answer-box p{margin:0;color:var(--ink);line-height:1.6}
+.metrics{display:flex;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.metric{flex:1;min-width:140px;border:1px solid #e7eaf0;border-radius:12px;padding:14px 16px}
+.metric-label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;margin-bottom:4px}
+.metric-value{font-weight:800;font-size:1.05rem;color:var(--ink)}
+.status-supported{color:#12b76a}
+.status-partial{color:#f79009}
+.status-unsupported{color:var(--tl-red)}
+.sources-section h3{font-size:.9rem;font-weight:800;color:var(--ink);margin-bottom:10px}
+.cited-note{color:var(--muted);font-size:.82rem;margin:-8px 0 18px}
+.cited-note strong{color:var(--ink)}
+.section-title{font-size:.9rem;font-weight:800;color:var(--ink);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.section-sub{color:var(--muted);font-size:.78rem;font-weight:500;margin:-6px 0 12px}
+.claim-row{border:1px solid #e7eaf0;border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.claim-row-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px}
+.claim-text{font-weight:600;color:var(--ink);font-size:.9rem}
+.claim-badge{flex-shrink:0;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.03em;padding:.2rem .55rem;border-radius:999px;white-space:nowrap}
+.claim-badge.yes{background:#e7f9ef;color:#12b76a}
+.claim-badge.no{background:#fff0f2;color:var(--tl-red)}
+.claim-meta{color:var(--muted);font-size:.78rem}
+.claim-excerpt{color:var(--muted);font-size:.8rem;font-style:italic;margin-top:6px;border-left:2px solid #e7eaf0;padding-left:8px}
+.evidence-card{border:1px solid #e7eaf0;border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.evidence-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.evidence-doc{font-weight:700;color:var(--ink);font-size:.85rem}
+.evidence-score{font-size:.72rem;font-weight:700;color:var(--tl-red);background:#fff0f2;padding:.15rem .5rem;border-radius:999px}
+.evidence-excerpt{color:var(--muted);font-size:.82rem;line-height:1.5}
+.grounded-yes{color:#12b76a}
+.grounded-no{color:#f79009}
+.hallucination-warning{background:#fffaeb;border:1px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:18px}
+.hallucination-warning h4{font-size:.82rem;font-weight:800;color:#92400e;margin-bottom:6px}
+.hallucination-warning ul{margin:0;padding-left:1.1rem;color:#92400e;font-size:.82rem}
+.footer-note{text-align:center;color:var(--muted);font-size:.85rem;margin-top:8px}
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="page">
@@ -102,13 +160,15 @@
 
             </div>
 
+            <p class="cited-note" id="cited-note" hidden></p>
+
 
             <div class="metrics">
 
                 <div class="metric">
 
                     <span class="metric-label">
-                        Evidence Status
+                        Evidence Coverage
                     </span>
 
                     <span
@@ -134,16 +194,64 @@
 
                 </div>
 
+
+                <div class="metric">
+
+                    <span class="metric-label">
+                        Groundedness Check
+                    </span>
+
+                    <span
+                        id="grounded"
+                        class="metric-value"
+                    >
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="hallucination-warning"
+                class="hallucination-warning"
+                hidden
+            >
+                <h4>⚠ Unsupported claims detected in the generated answer</h4>
+                <p style="margin:0 0 6px;color:#92400e;font-size:.82rem">
+                    The post-generation groundedness check flagged part of the
+                    answer as not directly traceable to the retrieved evidence:
+                </p>
+                <ul id="unsupported-claims-list"></ul>
             </div>
 
 
             <div class="sources-section">
 
-                <h3>
-                    Evidence / Sources
-                </h3>
+                <div class="section-title">
+                    🔎 Question Decomposition &amp; Evidence Coverage
+                </div>
+                <p class="section-sub">
+                    Each claim in your question, evaluated independently
+                    against the retrieved evidence.
+                </p>
 
-                <ul id="sources"></ul>
+                <div id="claims"></div>
+
+            </div>
+
+
+            <div class="sources-section">
+
+                <div class="section-title">
+                    📄 Retrieved Evidence
+                </div>
+                <p class="section-sub">
+                    Actual document chunks retrieved from the policy
+                    knowledge base (not the AI's self-reported citations).
+                </p>
+
+                <div id="evidence"></div>
 
             </div>
 
@@ -344,39 +452,186 @@ form.addEventListener(
                     confidence.toFixed(1) + "%";
 
 
-            const sources =
-                document.getElementById(
-                    "sources"
-                );
+            // ---- Groundedness ----
+
+            const groundedElement =
+                document.getElementById("grounded");
+
+            const isGrounded =
+                data.grounded !== false;
+
+            groundedElement.textContent =
+                isGrounded ? "✓ Grounded" : "⚠ Needs review";
+
+            groundedElement.className =
+                "metric-value " +
+                (isGrounded ? "grounded-yes" : "grounded-no");
+
+            const hallucinationBox =
+                document.getElementById("hallucination-warning");
+
+            const unsupportedClaimsList =
+                document.getElementById("unsupported-claims-list");
+
+            const unsupportedClaims =
+                Array.isArray(data.unsupported_claims)
+                    ? data.unsupported_claims
+                    : [];
+
+            unsupportedClaimsList.replaceChildren();
+
+            if (!isGrounded && unsupportedClaims.length > 0) {
+
+                unsupportedClaims.forEach(function (claim) {
+                    const li = document.createElement("li");
+                    li.textContent =
+                        typeof claim === "string"
+                            ? claim
+                            : JSON.stringify(claim);
+                    unsupportedClaimsList.appendChild(li);
+                });
+
+                hallucinationBox.hidden = false;
+
+            } else {
+
+                hallucinationBox.hidden = true;
+            }
 
 
-            sources.replaceChildren();
+            // ---- AI self-cited sources (secondary, for comparison) ----
 
+            const citedNote =
+                document.getElementById("cited-note");
 
             const sourceList =
                 Array.isArray(data.sources)
-                    ? data.sources
+                    ? [...new Set(data.sources)]
                     : [];
 
+            if (sourceList.length > 0) {
+                citedNote.innerHTML =
+                    "<strong>AI cited:</strong> " +
+                    sourceList
+                        .map(s => String(s))
+                        .join(", ");
+                citedNote.hidden = false;
+            } else {
+                citedNote.hidden = true;
+            }
 
-            [
-                ...new Set(sourceList)
-            ].forEach(
-                function (source) {
 
-                    const li =
-                        document.createElement(
-                            "li"
-                        );
+            // ---- Claim-level evidence coverage ----
 
-                    li.textContent =
-                        source;
+            const claimsContainer =
+                document.getElementById("claims");
 
-                    sources.appendChild(
-                        li
-                    );
-                }
-            );
+            claimsContainer.replaceChildren();
+
+            const claimList =
+                Array.isArray(data.claims) ? data.claims : [];
+
+            if (claimList.length === 0) {
+
+                const empty = document.createElement("p");
+                empty.className = "section-sub";
+                empty.style.margin = "0";
+                empty.textContent = "No claim-level data returned.";
+                claimsContainer.appendChild(empty);
+
+            } else {
+
+                claimList.forEach(function (claim) {
+
+                    const row = document.createElement("div");
+                    row.className = "claim-row";
+
+                    const head = document.createElement("div");
+                    head.className = "claim-row-head";
+
+                    const text = document.createElement("span");
+                    text.className = "claim-text";
+                    text.textContent = claim.claim || "";
+
+                    const badge = document.createElement("span");
+                    badge.className =
+                        "claim-badge " + (claim.supported ? "yes" : "no");
+                    badge.textContent =
+                        claim.supported ? "Supported" : "Not supported";
+
+                    head.appendChild(text);
+                    head.appendChild(badge);
+                    row.appendChild(head);
+
+                    const meta = document.createElement("div");
+                    meta.className = "claim-meta";
+                    meta.textContent =
+                        (claim.document ? claim.document + " · " : "") +
+                        "score " + Number(claim.score || 0).toFixed(2);
+                    row.appendChild(meta);
+
+                    if (claim.excerpt) {
+                        const excerpt = document.createElement("div");
+                        excerpt.className = "claim-excerpt";
+                        excerpt.textContent = "\u201C" + claim.excerpt + "\u201D";
+                        row.appendChild(excerpt);
+                    }
+
+                    claimsContainer.appendChild(row);
+                });
+            }
+
+
+            // ---- Retrieved evidence chunks ----
+
+            const evidenceContainer =
+                document.getElementById("evidence");
+
+            evidenceContainer.replaceChildren();
+
+            const evidenceList =
+                Array.isArray(data.evidence) ? data.evidence : [];
+
+            if (evidenceList.length === 0) {
+
+                const empty = document.createElement("p");
+                empty.className = "section-sub";
+                empty.style.margin = "0";
+                empty.textContent =
+                    "No evidence chunks were retrieved above the relevance threshold.";
+                evidenceContainer.appendChild(empty);
+
+            } else {
+
+                evidenceList.forEach(function (item) {
+
+                    const card = document.createElement("div");
+                    card.className = "evidence-card";
+
+                    const head = document.createElement("div");
+                    head.className = "evidence-card-head";
+
+                    const doc = document.createElement("span");
+                    doc.className = "evidence-doc";
+                    doc.textContent = item.document || "Unknown document";
+
+                    const score = document.createElement("span");
+                    score.className = "evidence-score";
+                    score.textContent =
+                        "relevance " + Number(item.score || 0).toFixed(2);
+
+                    head.appendChild(doc);
+                    head.appendChild(score);
+                    card.appendChild(head);
+
+                    const excerpt = document.createElement("div");
+                    excerpt.className = "evidence-excerpt";
+                    excerpt.textContent = item.excerpt || item.evidence || "";
+                    card.appendChild(excerpt);
+
+                    evidenceContainer.appendChild(card);
+                });
+            }
 
 
             answerCard.hidden = false;

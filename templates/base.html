@@ -53,24 +53,26 @@
 <div class="container-fluid">
   <div class="row">
     {% if request.user.is_authenticated %}
+    {% with url_name=request.resolver_match.url_name %}
     <aside class="col-md-3 col-lg-2 sidebar p-3">
       <div class="sidebar-label">Platform</div>
       <nav class="nav flex-column">
-        <a href="/accounts/dashboard/" class="nav-link"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a>
-        <a href="{% url 'rag_chat' %}" class="nav-link"><i class="bi bi-robot me-2"></i>AI Assistant</a>
+        <a href="/accounts/dashboard/" class="nav-link{% if url_name == 'dashboard' %} active{% endif %}"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a>
+        <a href="{% url 'rag_chat' %}" class="nav-link{% if url_name == 'rag_chat' %} active{% endif %}"><i class="bi bi-robot me-2"></i>AI Assistant</a>
       </nav>
       <div class="sidebar-label">Recruitment</div>
       <nav class="nav flex-column">
-        <a href="{% url 'job_list' %}" class="nav-link"><i class="bi bi-briefcase me-2"></i>Job Vacancies</a>
-        <a href="{% url 'create_job' %}" class="nav-link"><i class="bi bi-plus-circle me-2"></i>Create Job</a>
-        <a href="{% url 'candidate_ranking' %}" class="nav-link"><i class="bi bi-bar-chart-line me-2"></i>Candidate Ranking</a>
-        <a href="{% url 'ranking_jobs' %}" class="nav-link"><i class="bi bi-list-ol me-2"></i>Ranking by Job</a>
+        <a href="{% url 'job_list' %}" class="nav-link{% if url_name == 'job_list' or url_name == 'job_detail' or url_name == 'apply_job' %} active{% endif %}"><i class="bi bi-briefcase me-2"></i>Job Vacancies</a>
+        <a href="{% url 'create_job' %}" class="nav-link{% if url_name == 'create_job' %} active{% endif %}"><i class="bi bi-plus-circle me-2"></i>Create Job</a>
+        <a href="{% url 'candidate_ranking' %}" class="nav-link{% if url_name == 'candidate_ranking' or url_name == 'candidate_detail' %} active{% endif %}"><i class="bi bi-bar-chart-line me-2"></i>Candidate Ranking</a>
+        <a href="{% url 'ranking_jobs' %}" class="nav-link{% if url_name == 'ranking_jobs' or url_name == 'ranking_by_job' %} active{% endif %}"><i class="bi bi-list-ol me-2"></i>Ranking by Job</a>
       </nav>
       <div class="sidebar-label">Administration</div>
       <nav class="nav flex-column">
-        <a href="{% url 'user_list' %}" class="nav-link"><i class="bi bi-people me-2"></i>Users</a>
-        <a href="{% url 'profile' %}" class="nav-link"><i class="bi bi-person-vcard me-2"></i>My Profile</a>
+        <a href="{% url 'user_list' %}" class="nav-link{% if url_name == 'user_list' or url_name == 'user_detail' or url_name == 'user_create' or url_name == 'user_edit' or url_name == 'user_delete' %} active{% endif %}"><i class="bi bi-people me-2"></i>Users</a>
+        <a href="{% url 'profile' %}" class="nav-link{% if url_name == 'profile' %} active{% endif %}"><i class="bi bi-person-vcard me-2"></i>My Profile</a>
       </nav>
+    {% endwith %}
       <div class="mt-4 p-3 rounded-3" style="background:#111;color:#fff">
         <div class="small fw-bold">República Democrática de Timor-Leste</div>
         <div class="small text-white-50 mt-1">Civil Service Decision Support</div>

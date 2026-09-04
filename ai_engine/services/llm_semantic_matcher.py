@@ -8,7 +8,22 @@ from ai_engine.services.llm_candidate_profile import (
 )
 
 MODEL_NAME = "gemma3:12b"
-# MODEL_NAME = "qwen3:8b"
+
+DEFAULT_RESULT = {
+    "overall_score": 0,
+    "dimension_scores": {
+        "education": 0,
+        "experience": 0,
+        "technical_skills": 0,
+        "soft_skills": 0,
+        "certifications": 0,
+        "languages": 0
+    },
+    "strengths": [],
+    "weaknesses": [],
+    "reasoning": {},
+    "recommendation": ""
+}
 
 
 def extract_json(text):
@@ -39,35 +54,28 @@ def extract_json(text):
 
 def semantic_match(
     candidate_profile,
-    job
+    job_profile
 ):
+    """
+    Evaluates candidate-to-job fit per dimension using the LLM,
+    so it can reason about synonyms/ontology (e.g. "Database
+    Management" ~ "PostgreSQL Administration") instead of pure
+    vector similarity.
 
-    prompt = f"""
-You are an expert recruitment analyst.
+    Both arguments are plain dicts (candidate profile / AI-extracted
+    job profile), consistent with the rest of the pipeline.
+    """
+
+    prompt = f"""You are an expert recruitment analyst. Score how well the candidate matches the job, dimension by dimension.
 
 {MULTILINGUAL_INSTRUCTION}
 
-Evaluate how well this candidate matches the job.
+Treat synonymous or related terms as matching (e.g. "Database Management" and "PostgreSQL Administration" should be scored as related skills, not unrelated ones).
 
-The candidate profile and job description may be written in different languages.
-
-Evaluate based on:
-
-- Education
-- Professional Experience
-- Technical Skills
-- Soft Skills
-- Certifications
-- Languages
-- Overall suitability
-
-Return ONLY valid JSON.
-
-Schema:
+All numeric scores are integers from 0 to 100. Keep "reasoning" values to one short sentence each. Return ONLY this JSON, no markdown, no extra text:
 
 {{
     "overall_score": 0,
-
     "dimension_scores": {{
         "education": 0,
         "experience": 0,
@@ -76,11 +84,8 @@ Schema:
         "certifications": 0,
         "languages": 0
     }},
-
     "strengths": [],
-
     "weaknesses": [],
-
     "reasoning": {{
         "education": "",
         "experience": "",
@@ -89,96 +94,37 @@ Schema:
         "certifications": "",
         "languages": ""
     }},
-
     "recommendation": ""
 }}
 
 Candidate Profile
-
 {json.dumps(candidate_profile, indent=2)}
 
-Job Title
-
-{job.title}
-
-Job Description
-
-{job.description}
-
-Job Requirements
-
-{job.requirements}
+Job Profile
+{json.dumps(job_profile, indent=2)}
 """
 
     try:
 
         response = ollama.chat(
-
             model=MODEL_NAME,
-
             messages=[
                 {
                     "role": "user",
                     "content": prompt
                 }
-            ]
-
+            ],
+            format="json"
         )
 
         content = response["message"]["content"]
 
-        print("\n===== SEMANTIC MATCH =====\n")
-        print(content)
-        print("\n==========================\n")
-
         return extract_json(content)
-
-    except json.JSONDecodeError:
-
-        return {
-
-            "overall_score": 0,
-
-            "dimension_scores": {
-                "education": 0,
-                "experience": 0,
-                "technical_skills": 0,
-                "soft_skills": 0,
-                "certifications": 0,
-                "languages": 0
-            },
-
-            "strengths": [],
-
-            "weaknesses": [],
-
-            "reasoning": {},
-
-            "recommendation": "Invalid JSON returned by Ollama"
-
-        }
 
     except Exception as e:
 
-        return {
+        result = DEFAULT_RESULT.copy()
+        result["dimension_scores"] = DEFAULT_RESULT["dimension_scores"].copy()
+        result["recommendation"] = f"Semantic matching unavailable: {e}"
 
-            "overall_score": 0,
-
-            "dimension_scores": {
-                "education": 0,
-                "experience": 0,
-                "technical_skills": 0,
-                "soft_skills": 0,
-                "certifications": 0,
-                "languages": 0
-            },
-
-            "strengths": [],
-
-            "weaknesses": [],
-
-            "reasoning": {},
-
-            "recommendation": str(e)
-
-        }
+        return result

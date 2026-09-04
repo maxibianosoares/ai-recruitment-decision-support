@@ -40,8 +40,8 @@ class RAGEvaluator:
                     "unknown"
                 )
 
-                evidence_coverage = result.get(
-                    "evidence_coverage",
+                coverage = result.get(
+                    "coverage",
                     0
                 )
 
@@ -82,6 +82,9 @@ class RAGEvaluator:
 
                     "id":
                         item["id"],
+
+                    "category":
+                        item.get("category", "uncategorized"),
 
                     "question":
                         question,
@@ -165,6 +168,8 @@ class RAGEvaluator:
                 results.append({
 
                     "id": item["id"],
+
+                    "category": item.get("category", "uncategorized"),
 
                     "question": question,
 
@@ -309,8 +314,177 @@ class RAGEvaluator:
                 false_acceptance,
 
             "false_rejection":
-                false_rejection
+                false_rejection,
+
+            "category_breakdown":
+                self.category_breakdown(results)
         }
+
+    def category_breakdown(self, results):
+        """
+        Per-category accuracy, so the 5-category thesis matrix
+        (direct_evidence / partial_evidence / unsupported / temporal /
+        recruitment_specific) can be reported, not just the 3-way
+        supported/partial/unsupported split.
+        """
+
+        categories = {}
+
+        for r in results:
+
+            cat = r.get("category", "uncategorized")
+
+            categories.setdefault(
+                cat,
+                {"total": 0, "correct": 0}
+            )
+
+            categories[cat]["total"] += 1
+
+            if r["classification_correct"]:
+                categories[cat]["correct"] += 1
+
+        breakdown = {}
+
+        for cat, stats in categories.items():
+
+            breakdown[cat] = {
+
+                "total": stats["total"],
+
+                "correct": stats["correct"],
+
+                "accuracy": (
+                    stats["correct"] / stats["total"]
+                    if stats["total"]
+                    else 0
+                )
+            }
+
+        return breakdown
+
+    def render_markdown_table(self, metrics):
+        """
+        Renders the summary metrics as a Markdown table plus a
+        per-category breakdown table, ready to paste into the
+        thesis paper.
+        """
+
+        lines = []
+
+        lines.append("## RAG Benchmark Results\n")
+
+        lines.append(
+            "| Metric | Value |"
+        )
+        lines.append(
+            "|---|---|"
+        )
+        lines.append(
+            f"| Total Questions | {metrics['total_questions']} |"
+        )
+        lines.append(
+            f"| Classification Accuracy | "
+            f"{metrics['classification_accuracy'] * 100:.1f}% |"
+        )
+        lines.append(
+            f"| Supported Accuracy | "
+            f"{metrics['supported_accuracy'] * 100:.1f}% |"
+        )
+        lines.append(
+            f"| Partial Accuracy | "
+            f"{metrics['partial_accuracy'] * 100:.1f}% |"
+        )
+        lines.append(
+            f"| Unsupported Accuracy | "
+            f"{metrics['unsupported_accuracy'] * 100:.1f}% |"
+        )
+        lines.append(
+            f"| Grounded Rate | "
+            f"{metrics['grounded_rate'] * 100:.1f}% |"
+        )
+        lines.append(
+            f"| Avg. Evidence Score | "
+            f"{metrics['average_evidence_score']:.2f} |"
+        )
+        lines.append(
+            f"| False Acceptance (count) | "
+            f"{metrics['false_acceptance']} |"
+        )
+        lines.append(
+            f"| False Rejection (count) | "
+            f"{metrics['false_rejection']} |"
+        )
+
+        lines.append("")
+        lines.append("## Accuracy by Category\n")
+        lines.append("| Category | Correct / Total | Accuracy |")
+        lines.append("|---|---|---|")
+
+        for cat, stats in metrics["category_breakdown"].items():
+
+            lines.append(
+                f"| {cat} | {stats['correct']}/{stats['total']} | "
+                f"{stats['accuracy'] * 100:.1f}% |"
+            )
+
+        return "\n".join(lines) + "\n"
+
+    def render_latex_table(self, metrics):
+        """LaTeX equivalent of render_markdown_table, for the thesis."""
+
+        lines = []
+
+        lines.append(r"\begin{table}[h]")
+        lines.append(r"\centering")
+        lines.append(r"\begin{tabular}{lr}")
+        lines.append(r"\hline")
+        lines.append(r"Metric & Value \\")
+        lines.append(r"\hline")
+        lines.append(
+            f"Total Questions & {metrics['total_questions']} \\\\"
+        )
+        lines.append(
+            f"Classification Accuracy & "
+            f"{metrics['classification_accuracy'] * 100:.1f}\\% \\\\"
+        )
+        lines.append(
+            f"Supported Accuracy & "
+            f"{metrics['supported_accuracy'] * 100:.1f}\\% \\\\"
+        )
+        lines.append(
+            f"Partial Accuracy & "
+            f"{metrics['partial_accuracy'] * 100:.1f}\\% \\\\"
+        )
+        lines.append(
+            f"Unsupported Accuracy & "
+            f"{metrics['unsupported_accuracy'] * 100:.1f}\\% \\\\"
+        )
+        lines.append(
+            f"Grounded Rate & "
+            f"{metrics['grounded_rate'] * 100:.1f}\\% \\\\"
+        )
+        lines.append(
+            f"Avg. Evidence Score & "
+            f"{metrics['average_evidence_score']:.2f} \\\\"
+        )
+        lines.append(
+            f"False Acceptance (count) & "
+            f"{metrics['false_acceptance']} \\\\"
+        )
+        lines.append(
+            f"False Rejection (count) & "
+            f"{metrics['false_rejection']} \\\\"
+        )
+        lines.append(r"\hline")
+        lines.append(r"\end{tabular}")
+        lines.append(
+            r"\caption{RAG evaluation summary "
+            r"(N=" + str(metrics["total_questions"]) + r")}"
+        )
+        lines.append(r"\end{table}")
+
+        return "\n".join(lines) + "\n"
 
     def save_results(
         self,

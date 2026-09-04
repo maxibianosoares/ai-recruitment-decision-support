@@ -57,12 +57,14 @@ Schema:
     "recommendation":""
 }}
 
-Decision must be one of:
+Decision must be exactly one of these four strings:
 
 - Highly Recommended
 - Recommended
 - Consider
 - Not Recommended
+
+The confidence score MUST be an integer between 0 and 100.
 """
     return generate_json(
     prompt=prompt,

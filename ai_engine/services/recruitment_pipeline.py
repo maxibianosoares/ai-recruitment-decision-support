@@ -4,10 +4,56 @@ from time import perf_counter
 from django.utils import timezone
 
 from .llm_candidate_profile import analyze_cv
-from .semantic_matcher import semantic_match
+from .llm_semantic_matcher import semantic_match
 from .skill_gap_analysis import skill_gap_analysis
 from .recruitment_rules import evaluate_recruitment_rules
 from .llm_explainable_ai import generate_explainable_report
+
+
+ALLOWED_DECISIONS = [
+    "Highly Recommended",
+    "Recommended",
+    "Consider",
+    "Not Recommended"
+]
+
+
+def normalize_decision(raw_decision):
+    """
+    The decision label is LLM-generated free text. Map it to the
+    canonical whitelist so the UI never has to render an
+    unrecognized label; anything unmatched falls back to "Consider"
+    so it still surfaces for human review rather than being silently
+    dropped.
+    """
+
+    text = (raw_decision or "").strip().lower()
+
+    for option in ALLOWED_DECISIONS:
+        if option.lower() == text:
+            return option
+
+    if "highly" in text:
+        return "Highly Recommended"
+
+    if "not" in text:
+        return "Not Recommended"
+
+    if "recommend" in text:
+        return "Recommended"
+
+    return "Consider"
+
+
+def clamp_confidence(raw_confidence):
+    """Guarantee an integer 0-100 regardless of what the LLM returns."""
+
+    try:
+        value = float(raw_confidence)
+    except (TypeError, ValueError):
+        return 0
+
+    return int(max(0, min(100, round(value))))
 
 
 def recruitment_pipeline(application):
@@ -110,14 +156,12 @@ def recruitment_pipeline(application):
             0
         )
 
-        application.ai_decision = report.get(
-            "decision",
-            ""
+        application.ai_decision = normalize_decision(
+            report.get("decision", "")
         )
 
-        application.ai_confidence = report.get(
-            "confidence",
-            0
+        application.ai_confidence = clamp_confidence(
+            report.get("confidence", 0)
         )
 
         application.ai_feedback = report.get(

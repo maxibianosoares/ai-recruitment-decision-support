@@ -39,6 +39,12 @@ def login_view(request):
             login(request, user)
             return redirect('dashboard')
 
+        return render(
+            request,
+            'accounts/login.html',
+            {'error': 'Invalid username or password.'}
+        )
+
     return render(
         request,
         'accounts/login.html'

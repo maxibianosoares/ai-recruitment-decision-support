@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.contrib import messages
 from .models import Job
 from django.shortcuts import (
     render,
@@ -17,7 +18,7 @@ from .models import (
     Candidate,
     Application
 )
-from .utils import extract_text_from_pdf
+from .utils import extract_text_from_pdf, CVExtractionError
 
 from django.shortcuts import render, get_object_or_404
 from .models import Job
@@ -121,11 +122,25 @@ def apply_job(request, job_id):
         # EXTRACT PDF TEXT
         # =====================================
 
-        pdf_path = candidate.cv_file.path
+        try:
 
-        candidate.extracted_text = extract_text_from_pdf(pdf_path)
+            pdf_path = candidate.cv_file.path
 
-        candidate.save()
+            candidate.extracted_text = extract_text_from_pdf(pdf_path)
+
+            candidate.save()
+
+        except CVExtractionError as e:
+
+            candidate.cv_file.delete(save=False)
+            candidate.delete()
+
+            messages.error(request, str(e))
+
+            return redirect(
+                "apply_job",
+                job_id=job.id
+            )
 
         # =====================================
         # CREATE APPLICATION
@@ -140,7 +155,25 @@ def apply_job(request, job_id):
         # RUN AI PIPELINE
         # =====================================
 
-        recruitment_pipeline(application)
+        try:
+            recruitment_pipeline(application)
+            messages.success(
+                request,
+                "Application submitted and AI analysis complete."
+            )
+
+        except Exception:
+            # recruitment_pipeline already recorded ai_status="FAILED"
+            # and the error detail on the application before re-raising.
+            # The application/candidate stay saved so a recruiter can
+            # still see it and re-run analysis later; we just avoid
+            # crashing the candidate's browser mid-submission.
+            messages.error(
+                request,
+                "Your application was submitted, but the AI analysis "
+                "could not be completed right now (the AI service may "
+                "be unavailable). A recruiter will review it manually."
+            )
 
         return redirect(
             "job_detail",
@@ -269,7 +302,7 @@ def test_semantic_matching(
     
     result = semantic_match(
     candidate_profile,
-    job
+    job.ai_job_profile
 )
     
     return render(
@@ -292,7 +325,25 @@ def create_job(request):
 
             job = form.save()
 
-            process_job(job)
+            try:
+
+                process_job(job)
+
+                messages.success(
+                    request,
+                    "Job created and AI profiling complete."
+                )
+
+            except Exception:
+
+                messages.warning(
+                    request,
+                    "Job was created, but AI profiling could not be "
+                    "completed right now (the AI service may be "
+                    "unavailable). Candidates can still apply, but "
+                    "matching accuracy may be affected until this is "
+                    "reprocessed."
+                )
 
             return redirect(
                 "job_detail",

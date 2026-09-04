@@ -1,3 +1,5 @@
+import re
+
 from rag.retriever import retriever
 from rag.context_builder import build_context
 from rag.evidence_gate import EvidenceGate
@@ -7,6 +9,23 @@ from rag.groundedness import groundedness_analyzer
 
 from rag.question_decomposer import question_decomposer
 from rag.evidence_coverage import evidence_coverage
+
+
+def humanize_source(raw_source):
+    """
+    Metadata stores the raw filesystem path (built on Windows, so it
+    may contain backslashes). Reduce that to a clean, presentable
+    document title for the UI.
+    """
+
+    if not raw_source:
+        return "Unknown document"
+
+    name = raw_source.replace("\\", "/").split("/")[-1]
+    name = re.sub(r"\.pdf$", "", name, flags=re.IGNORECASE)
+    name = name.replace("_", " ").replace("-", " ")
+
+    return name.strip().title()
 
 
 DEFAULT_RESULT = {
@@ -24,6 +43,31 @@ DEFAULT_RESULT = {
 
 
 class RAGPipeline:
+
+    def _present_claims(self, claims):
+        """Trim claim-level evidence for API/UI presentation."""
+
+        presented = []
+
+        for claim in claims:
+
+            evidence_text = claim.get("evidence") or ""
+
+            presented.append({
+                "id": claim.get("id"),
+                "claim": claim.get("claim"),
+                "supported": claim.get("supported", False),
+                "score": round(float(claim.get("score", 0)), 4),
+                "document": humanize_source(claim.get("document")),
+                "excerpt": (
+                    (evidence_text[:220] + "…")
+                    if len(evidence_text) > 220
+                    else evidence_text
+                ),
+                "reason": claim.get("verification_reason", "")
+            })
+
+        return presented
 
     def ask(self, query, top_k=5):
 
@@ -120,19 +164,24 @@ class RAGPipeline:
 
         for document in documents:
 
+            raw_text = document.get("text") or ""
+
             evidence.append({
 
                 "document":
-                    document.get("source"),
+                    humanize_source(document.get("source")),
 
                 "chunk_id":
                     document.get("id"),
 
                 "score":
-                    document.get("score", 0),
+                    round(float(document.get("score", 0)), 4),
 
                 "evidence":
-                    document.get("text")
+                    raw_text,
+
+                "excerpt":
+                    (raw_text[:280] + "…") if len(raw_text) > 280 else raw_text
 
             })
 
@@ -198,6 +247,9 @@ class RAGPipeline:
                 "sources": [],
 
                 "evidence": [],
+
+                "claims":
+                    self._present_claims(coverage_result["claims"]),
 
                 "confidence":
                     round(
@@ -420,6 +472,9 @@ Return ONLY valid JSON.
 
             "evidence":
                 evidence,
+
+            "claims":
+                self._present_claims(coverage_result["claims"]),
 
             "confidence":
                 round(
