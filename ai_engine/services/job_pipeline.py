@@ -12,6 +12,14 @@ def process_job(job):
         job.description
     )
 
+    
+    print("\n====================================")
+    print("ICT OFFICER JOB PROFILE")
+    print("====================================")
+    print(profile)
+    print("====================================\n")
+    
+
     job.ai_job_profile = profile
 
     job.ai_processed = True

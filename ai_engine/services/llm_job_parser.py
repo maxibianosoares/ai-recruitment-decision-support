@@ -52,8 +52,7 @@ Job Description
     try:
 
         result = generate_json(
-            prompt=prompt,
-            temperature=0
+            prompt=prompt
         )
 
         print("\n===== JOB PARSER RESPONSE =====\n")

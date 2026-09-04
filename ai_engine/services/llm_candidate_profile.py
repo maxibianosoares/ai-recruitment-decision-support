@@ -1,7 +1,6 @@
 import json
 
 from .llm_service import generate_json
-# from .local_llm import generate_json
 
 MULTILINGUAL_INSTRUCTION = """
 The CV and Job Description may be written in English, Portuguese, Tetum,
@@ -81,8 +80,7 @@ CV
     try:
 
         result = generate_json(
-            prompt=prompt,
-            temperature=0
+            prompt=prompt
         )
 
         print("\n===== PROFILE RESPONSE =====\n")
