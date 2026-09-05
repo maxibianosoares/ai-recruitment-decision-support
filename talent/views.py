@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from .models import Job
 from django.shortcuts import (
     render,
@@ -20,6 +21,8 @@ from .models import (
 )
 from .utils import extract_text_from_pdf, CVExtractionError
 
+MAX_CV_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
+
 from django.shortcuts import render, get_object_or_404
 from .models import Job
 
@@ -36,6 +39,7 @@ from .models import (
     Job
 )
 
+@login_required
 def candidate_detail(request, application_id):
 
     application = get_object_or_404(
@@ -75,27 +79,34 @@ def job_detail(request, job_id):
         id=job_id
     )
 
-    applications = (
-        Application.objects
-        .filter(
-            job=job
+    context = {
+        "job": job
+    }
+
+    # Candidate ranking/scores are internal, staff-only data — this
+    # page itself is public so prospective candidates can view the
+    # posting and apply, but anonymous visitors must not see who
+    # else applied or their AI scores.
+    if request.user.is_authenticated:
+
+        context["applications"] = (
+            Application.objects
+            .filter(
+                job=job
+            )
+            .select_related(
+                "candidate"
+            )
+            .order_by(
+                "-ai_score",
+                "-applied_at"
+            )
         )
-        .select_related(
-            "candidate"
-        )
-        .order_by(
-            "-ai_score",
-            "-applied_at"
-        )
-    )
 
     return render(
         request,
         "talent/job_detail.html",
-        {
-            "job": job,
-            "applications": applications
-        }
+        context
     )
 
 def apply_job(request, job_id):
@@ -107,6 +118,49 @@ def apply_job(request, job_id):
         full_name = request.POST.get("full_name")
         email = request.POST.get("email")
         cv_file = request.FILES.get("cv_file")
+
+        # =====================================
+        # VALIDATE UPLOADED FILE
+        # (extension + size, before it ever touches
+        # disk/memory processing)
+        # =====================================
+
+        if not cv_file:
+
+            messages.error(
+                request,
+                "Please attach your CV as a PDF file."
+            )
+
+            return redirect(
+                "apply_job",
+                job_id=job.id
+            )
+
+        if not cv_file.name.lower().endswith(".pdf"):
+
+            messages.error(
+                request,
+                "Only PDF files are accepted for the CV upload."
+            )
+
+            return redirect(
+                "apply_job",
+                job_id=job.id
+            )
+
+        if cv_file.size > MAX_CV_FILE_SIZE_BYTES:
+
+            messages.error(
+                request,
+                "That file is too large. Please upload a PDF under "
+                f"{MAX_CV_FILE_SIZE_BYTES // (1024 * 1024)}MB."
+            )
+
+            return redirect(
+                "apply_job",
+                job_id=job.id
+            )
 
         # =====================================
         # CREATE CANDIDATE
@@ -189,6 +243,7 @@ def apply_job(request, job_id):
     )
 
 
+@login_required
 def candidate_cv_text(request, candidate_id):
 
     candidate = get_object_or_404(
@@ -204,6 +259,7 @@ def candidate_cv_text(request, candidate_id):
         }
     )
 
+@login_required
 def candidate_ranking(request):
 
     applications = (
@@ -225,6 +281,7 @@ def candidate_ranking(request):
         }
     )
 
+@login_required
 def ranking_jobs(request):
 
     jobs = Job.objects.all()
@@ -238,6 +295,7 @@ def ranking_jobs(request):
     )
 
 
+@login_required
 def ranking_by_job(
     request,
     job_id
@@ -271,6 +329,7 @@ def ranking_by_job(
     )
 
 
+@login_required
 def test_semantic_matching(
     request
 ):
@@ -315,6 +374,7 @@ def test_semantic_matching(
     }
 )
 
+@login_required
 def create_job(request):
 
     if request.method == "POST":

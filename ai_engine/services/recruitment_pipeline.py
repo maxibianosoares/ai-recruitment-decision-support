@@ -45,15 +45,74 @@ def normalize_decision(raw_decision):
     return "Consider"
 
 
-def clamp_confidence(raw_confidence):
+def clamp_0_100(raw_value):
     """Guarantee an integer 0-100 regardless of what the LLM returns."""
 
     try:
-        value = float(raw_confidence)
+        value = float(raw_value)
     except (TypeError, ValueError):
         return 0
 
     return int(max(0, min(100, round(value))))
+
+
+RAG_POLICY_SCORE_PLACEHOLDER = 80
+
+
+def compute_final_score(
+    rule_eligible,
+    skill_match_score,
+    semantic_score,
+    rag_score=RAG_POLICY_SCORE_PLACEHOLDER
+):
+    """
+    Decision Fusion Formula — single source of truth for the final
+    ai_score, shared by the live pipeline and the demo-data seeder
+    so seeded scores can never drift from what the real pipeline
+    would compute for the same inputs.
+
+    Weighting per thesis methodology:
+      Rule Match (skill %)   40%
+      LLM Semantic Match     40%
+      RAG Engine Policy      20%
+
+    NOTE (thesis honesty): rag_score defaults to a fixed placeholder
+    (80), NOT a live per-candidate RAG evidence score. The RAG
+    Assistant in this system answers POLICY questions from the
+    static knowledge base — it has no notion of "this candidate's
+    RAG score" to fetch. Treat this weight as reserved for a future
+    per-candidate policy-compliance check, not as data currently
+    being computed. If asked in the defense, this is the honest
+    answer: the 20% RAG term is not yet backed by a real signal.
+
+    If the rule engine's hard gate fails (eligible=False), the score
+    is capped below the pass threshold regardless of how well
+    semantic/skill matching went, so a candidate disqualified by
+    hard requirements can never surface as a high score.
+    """
+
+    skill_match_score = clamp_0_100(skill_match_score)
+    semantic_score = clamp_0_100(semantic_score)
+    rag_score = clamp_0_100(rag_score)
+
+    if not rule_eligible:
+
+        final_score = int(
+            (skill_match_score * 0.4)
+            + (semantic_score * 0.4)
+        )
+
+        final_score = min(final_score, 49)
+
+    else:
+
+        final_score = int(
+            (skill_match_score * 0.4)
+            + (semantic_score * 0.4)
+            + (rag_score * 0.2)
+        )
+
+    return max(0, min(100, final_score))
 
 
 def recruitment_pipeline(application):
@@ -135,6 +194,18 @@ def recruitment_pipeline(application):
             gap_result=gap_result
         )
 
+        rule_eligible = rule_result.get("eligible", False)
+
+        skill_match_score = gap_result.get("match_score", 0)
+
+        semantic_score = semantic_result.get("overall_score", 0)
+
+        final_score = compute_final_score(
+            rule_eligible=rule_eligible,
+            skill_match_score=skill_match_score,
+            semantic_score=semantic_score
+        )
+
         # =====================================
         # Save Result
         # =====================================
@@ -151,16 +222,13 @@ def recruitment_pipeline(application):
 
         application.ai_explainable_report = report
 
-        application.ai_score = semantic_result.get(
-            "overall_score",
-            0
-        )
+        application.ai_score = final_score
 
         application.ai_decision = normalize_decision(
             report.get("decision", "")
         )
 
-        application.ai_confidence = clamp_confidence(
+        application.ai_confidence = clamp_0_100(
             report.get("confidence", 0)
         )
 

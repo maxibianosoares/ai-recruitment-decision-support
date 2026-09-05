@@ -1,3 +1,6 @@
+from .skill_gap_analysis import analyze_skill_gap
+
+
 def evaluate_recruitment_rules(
     candidate_profile,
     job_requirement
@@ -30,14 +33,14 @@ def evaluate_recruitment_rules(
     # -----------------------------
 
     required_education = job_requirement.get(
-        "required_education",
+        "education",
         ""
-    )
+    ) or ""
 
     candidate_education = candidate_profile.get(
         "education",
         ""
-    )
+    ) or ""
 
     if required_education:
 
@@ -60,14 +63,24 @@ def evaluate_recruitment_rules(
     # -----------------------------
 
     required_exp = job_requirement.get(
-        "minimum_experience",
+        "years_experience",
         0
-    )
+    ) or 0
 
     candidate_exp = candidate_profile.get(
         "years_experience",
         0
-    )
+    ) or 0
+
+    try:
+        candidate_exp = float(candidate_exp)
+    except (TypeError, ValueError):
+        candidate_exp = 0
+
+    try:
+        required_exp = float(required_exp)
+    except (TypeError, ValueError):
+        required_exp = 0
 
     if candidate_exp >= required_exp:
 
@@ -88,7 +101,7 @@ def evaluate_recruitment_rules(
     # -----------------------------
 
     required_languages = job_requirement.get(
-        "required_languages",
+        "languages",
         []
     )
 
@@ -125,7 +138,7 @@ def evaluate_recruitment_rules(
     # -----------------------------
 
     required_certifications = job_requirement.get(
-        "required_certifications",
+        "certifications",
         []
     )
 
@@ -148,35 +161,41 @@ def evaluate_recruitment_rules(
     # -----------------------------
     # Skills
     # -----------------------------
+    # Single source of truth: delegate to the same analyze_skill_gap()
+    # used by skill_gap_analysis.py, so the Rule Engine card and the
+    # Skill Gap Analysis card on Candidate Detail can never disagree
+    # about which skills matched (both use identical
+    # .strip().lower() set comparison).
+    # -----------------------------
 
     required_skills = job_requirement.get(
-        "required_skills",
+        "skills",
         []
     )
 
-    candidate_skills = [
-        x.lower()
-        for x in candidate_profile.get(
-            "skills",
-            []
-        )
-    ]
+    candidate_skills_raw = candidate_profile.get(
+        "skills",
+        []
+    )
 
-    missing_skills = []
+    skill_gap = analyze_skill_gap(
+        candidate_skills_raw,
+        required_skills
+    )
 
-    for skill in required_skills:
+    missing_skills = skill_gap["missing_skills"]
 
-        if skill.lower() not in candidate_skills:
-
-            missing_skills.append(skill)
+    matched_skills = skill_gap["matched_skills"]
 
     if missing_skills:
 
-        warnings.append(
-            f"Missing skills: {', '.join(missing_skills)}"
+        passed = False
+
+        failed_rules.append(
+            f"Missing required skills: {', '.join(missing_skills)}"
         )
 
-    else:
+    elif required_skills:
 
         passed_rules.append(
             "Technical skills satisfied."
@@ -190,6 +209,10 @@ def evaluate_recruitment_rules(
 
         "failed_rules": failed_rules,
 
-        "warnings": warnings
+        "warnings": warnings,
+
+        "matched_skills": matched_skills,
+
+        "missing_skills": missing_skills
 
     }
