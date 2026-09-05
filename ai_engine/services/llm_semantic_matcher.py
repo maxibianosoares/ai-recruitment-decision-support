@@ -52,6 +52,52 @@ def extract_json(text):
     return json.loads(text.strip())
 
 
+def clamp_score(value):
+    """Guarantee a 0-100 number regardless of what the LLM returns."""
+
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return 0
+
+    return round(max(0, min(100, value)), 2)
+
+
+def normalize_result(raw_result):
+    """
+    Defense-in-depth: the prompt instructs the LLM to keep every
+    score a 0-100 integer, but nothing enforces that on the model's
+    output. Clamp overall_score and every dimension score here so a
+    malformed/out-of-range value from the LLM can never reach the
+    database or blow past 100% in a progress-bar width.
+    """
+
+    result = dict(raw_result) if isinstance(raw_result, dict) else {}
+
+    result["overall_score"] = clamp_score(
+        result.get("overall_score", 0)
+    )
+
+    raw_dimensions = result.get("dimension_scores") or {}
+
+    clamped_dimensions = {}
+
+    for key in DEFAULT_RESULT["dimension_scores"]:
+
+        clamped_dimensions[key] = clamp_score(
+            raw_dimensions.get(key, 0)
+        )
+
+    result["dimension_scores"] = clamped_dimensions
+
+    result.setdefault("strengths", [])
+    result.setdefault("weaknesses", [])
+    result.setdefault("reasoning", {})
+    result.setdefault("recommendation", "")
+
+    return result
+
+
 def semantic_match(
     candidate_profile,
     job_profile
@@ -119,7 +165,7 @@ Job Profile
 
         content = response["message"]["content"]
 
-        return extract_json(content)
+        return normalize_result(extract_json(content))
 
     except Exception as e:
 

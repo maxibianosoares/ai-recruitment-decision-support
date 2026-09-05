@@ -12,13 +12,17 @@ def process_job(job):
         job.description
     )
 
-    
+    if not profile:
+        raise ValueError(
+            "AI service returned an empty job profile "
+            "(the local LLM may be unreachable)."
+        )
+
     print("\n====================================")
     print("ICT OFFICER JOB PROFILE")
     print("====================================")
     print(profile)
     print("====================================\n")
-    
 
     job.ai_job_profile = profile
 

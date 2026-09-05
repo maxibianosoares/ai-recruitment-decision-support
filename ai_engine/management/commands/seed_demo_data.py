@@ -356,7 +356,7 @@ class Command(BaseCommand):
 
             for job_def in JOBS:
 
-                job = self._create_job(job_def)
+                job = self._create_job(job_def, options["live"])
 
                 for i, tier in enumerate(TIERS):
 
@@ -371,7 +371,7 @@ class Command(BaseCommand):
             )
         )
 
-    def _create_job(self, job_def):
+    def _create_job(self, job_def, live_mode):
 
         job = Job.objects.create(
             title=job_def["title"],
@@ -387,9 +387,82 @@ class Command(BaseCommand):
             skill, _ = Skill.objects.get_or_create(name=skill_name)
             job.skills.add(skill)
 
+        # =====================================
+        # KNOWLEDGE-INFUSED SCREENING CONTEXT
+        # =====================================
+        # In --live mode, actually query the RAG pipeline (cheap:
+        # once per job, not per candidate). In fast mode, use a
+        # realistic static context sourced from real, previously
+        # verified corpus quotes (civil_service_commission_law.pdf,
+        # Article 5) so the "Legal Reference Evidence" card on
+        # Candidate Detail has real-looking content to demo without
+        # requiring Ollama to be running.
+
+        if live_mode:
+
+            try:
+                from ai_engine.services.rag_screening_context import (
+                    get_rag_screening_context
+                )
+                job.ai_rag_context = get_rag_screening_context(job.title)
+
+            except Exception as e:
+                self.stdout.write(
+                    f"    (RAG context unavailable for {job.title}: {e})"
+                )
+                job.ai_rag_context = self._static_rag_context(job.title)
+
+        else:
+
+            job.ai_rag_context = self._static_rag_context(job.title)
+
+        job.save()
+
         self.stdout.write(f"  Created job: {job.title}")
 
         return job
+
+    def _static_rag_context(self, job_title):
+        """
+        A realistic stand-in for a real RAG response, used only in
+        fast (non ---live) seeding. The excerpt text below is a real
+        quote verified against the indexed corpus during Phase 4 --
+        not invented -- so it is safe to display as-is; it is
+        deliberately generic (the corpus has no job-title-specific
+        requirements) which mirrors what a real query would actually
+        retrieve for any of the four seeded job titles.
+        """
+
+        query = (
+            f"What are the official legal requirements and evaluation "
+            f"criteria for civil service recruitment for a "
+            f"{job_title} position?"
+        )
+
+        return {
+            "query": query,
+            "answer": (
+                "Recruitment must be based on merit, in line with the "
+                "Civil Service Commission's role in ensuring "
+                "merit-based recruitment. The corpus does not specify "
+                "requirements unique to individual job titles."
+            ),
+            "evidence": [
+                {
+                    "document": "Civil Service Commission Law",
+                    "chunk_id": "seed-static-1",
+                    "score": 0.61,
+                    "excerpt": (
+                        "The Commission shall ensure that recruitment "
+                        "and selection for the Public Service is based "
+                        "on merit."
+                    )
+                }
+            ],
+            "best_evidence_score": 0.61,
+            "grounded": True,
+            "error": None
+        }
 
     def _create_candidate_and_application(
         self, job, job_profile, tier, index, live_mode
@@ -454,7 +527,10 @@ class Command(BaseCommand):
         # ---- Fast/deterministic mode ----
         # Rule Engine and Skill Gap are REAL computations against the
         # seeded profile dicts. Only the semantic score and narrative
-        # are stand-ins for what the LLM would produce.
+        # are stand-ins for what the LLM would produce. rag_context
+        # is the static, corpus-verified context set on the job in
+        # _create_job(), reused here exactly like the live pipeline
+        # reuses the job's cached context per application.
 
         rule_result = evaluate_recruitment_rules(profile, job_profile)
 
@@ -481,12 +557,21 @@ class Command(BaseCommand):
             "recommendation": tier["narrative"]
         }
 
+        rag_context = job.ai_rag_context or {}
+
+        if rag_context.get("error") or not rag_context.get("evidence"):
+            rag_score = 80
+        else:
+            rag_score = rag_context.get("best_evidence_score", 0) * 100
+
         final_score = compute_final_score(
             rule_eligible=rule_result["eligible"],
             skill_match_score=gap_result["match_score"],
-            semantic_score=semantic_result["overall_score"]
+            semantic_score=semantic_result["overall_score"],
+            rag_score=rag_score
         )
 
+        application.ai_rag_context = rag_context
         application.ai_profile = profile
         application.ai_job_profile = job_profile
         application.ai_rule_result = rule_result

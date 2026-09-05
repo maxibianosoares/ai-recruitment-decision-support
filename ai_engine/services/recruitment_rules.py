@@ -28,6 +28,8 @@ def evaluate_recruitment_rules(
 
     warnings = []
 
+    matrix = []
+
     # -----------------------------
     # Education
     # -----------------------------
@@ -44,7 +46,9 @@ def evaluate_recruitment_rules(
 
     if required_education:
 
-        if required_education.lower() in candidate_education.lower():
+        education_met = required_education.lower() in candidate_education.lower()
+
+        if education_met:
 
             passed_rules.append(
                 "Education requirement satisfied."
@@ -57,6 +61,12 @@ def evaluate_recruitment_rules(
             failed_rules.append(
                 f"Required education: {required_education}"
             )
+
+        matrix.append({
+            "requirement": f"Education: {required_education}",
+            "evidence": candidate_education or "Not stated",
+            "met": education_met
+        })
 
     # -----------------------------
     # Experience
@@ -82,7 +92,9 @@ def evaluate_recruitment_rules(
     except (TypeError, ValueError):
         required_exp = 0
 
-    if candidate_exp >= required_exp:
+    experience_met = candidate_exp >= required_exp
+
+    if experience_met:
 
         passed_rules.append(
             "Minimum experience satisfied."
@@ -95,6 +107,12 @@ def evaluate_recruitment_rules(
         failed_rules.append(
             f"Minimum {required_exp} years experience required."
         )
+
+    matrix.append({
+        "requirement": f"Experience: {required_exp}+ years",
+        "evidence": f"{candidate_exp} years",
+        "met": experience_met
+    })
 
     # -----------------------------
     # Languages
@@ -115,13 +133,24 @@ def evaluate_recruitment_rules(
 
     for language in required_languages:
 
-        if language.lower() not in candidate_languages:
+        language_met = language.lower() in candidate_languages
+
+        if not language_met:
 
             passed = False
 
             failed_rules.append(
                 f"Missing language: {language}"
             )
+
+        matrix.append({
+            "requirement": f"Language: {language}",
+            "evidence": (
+                ", ".join(candidate_profile.get("languages", []))
+                or "Not stated"
+            ),
+            "met": language_met
+        })
 
     if required_languages:
 
@@ -152,11 +181,22 @@ def evaluate_recruitment_rules(
 
     for cert in required_certifications:
 
-        if cert.lower() not in candidate_certifications:
+        cert_met = cert.lower() in candidate_certifications
+
+        if not cert_met:
 
             warnings.append(
                 f"Preferred certification missing: {cert}"
             )
+
+        matrix.append({
+            "requirement": f"Certification (preferred): {cert}",
+            "evidence": (
+                ", ".join(candidate_profile.get("certifications", []))
+                or "None listed"
+            ),
+            "met": cert_met
+        })
 
     # -----------------------------
     # Skills
@@ -201,6 +241,20 @@ def evaluate_recruitment_rules(
             "Technical skills satisfied."
         )
 
+    for skill in required_skills:
+
+        skill_met = skill.strip().lower() in {
+            s.lower() for s in matched_skills
+        }
+
+        matrix.append({
+            "requirement": f"Skill: {skill}",
+            "evidence": (
+                ", ".join(candidate_skills_raw) or "None listed"
+            ),
+            "met": skill_met
+        })
+
     return {
 
         "eligible": passed,
@@ -213,6 +267,8 @@ def evaluate_recruitment_rules(
 
         "matched_skills": matched_skills,
 
-        "missing_skills": missing_skills
+        "missing_skills": missing_skills,
+
+        "matrix": matrix
 
     }

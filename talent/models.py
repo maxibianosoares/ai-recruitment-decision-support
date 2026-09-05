@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 import uuid
 
 class Skill(models.Model):
@@ -35,6 +36,11 @@ class Job(models.Model):
     ai_job_profile = models.JSONField(
     blank=True,
         null=True
+    )
+
+    ai_rag_context = models.JSONField(
+        default=dict,
+        blank=True
     )
 
     ai_processed = models.BooleanField(
@@ -214,6 +220,11 @@ class Application(models.Model):
         blank=True
     )
 
+    ai_rag_context = models.JSONField(
+        default=dict,
+        blank=True
+    )
+
     ai_explainable_report = models.JSONField(
         default=dict,
         blank=True
@@ -226,6 +237,11 @@ class Application(models.Model):
     ai_model = models.CharField(
         max_length=100,
         default="gemma3:12b"
+    )
+
+    ai_provider = models.CharField(
+        max_length=50,
+        default="Ollama (local)"
     )
 
     ai_version = models.CharField(
@@ -275,3 +291,65 @@ class Application(models.Model):
 
     def __str__(self):
         return f"{self.candidate.full_name} - {self.job.title}"
+
+
+class HumanDecision(models.Model):
+    """
+    Phase 15 — Human-in-the-Loop Review.
+
+    Records the recruiter's final call SEPARATELY from the AI's
+    recommendation (application.ai_decision), so agreement/override
+    can be measured, and so a reason is always captured. This is
+    also the intended seed for a future human-validated dataset
+    (see docs/PAPER_FRAMEWORK.md future-work notes) — never used
+    to auto-train anything today, just recorded.
+
+    One decision per application: re-submitting overwrites the
+    previous record rather than creating a history, since only the
+    final human call matters for the recruitment record itself.
+    """
+
+    DECISION_CHOICES = [
+        ("approved", "Approved"),
+        ("rejected", "Rejected"),
+    ]
+
+    application = models.OneToOneField(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="human_decision"
+    )
+
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    decision = models.CharField(
+        max_length=20,
+        choices=DECISION_CHOICES
+    )
+
+    reason = models.TextField()
+
+    agreed_with_ai = models.BooleanField(
+        default=False,
+        help_text=(
+            "True if this decision's direction (approved/rejected) "
+            "matches the AI's recommendation category at the time "
+            "of this decision."
+        )
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )
+
+    def __str__(self):
+        return f"{self.application} -> {self.decision}"

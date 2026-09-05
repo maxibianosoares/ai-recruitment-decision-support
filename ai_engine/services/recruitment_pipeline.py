@@ -8,6 +8,12 @@ from .llm_semantic_matcher import semantic_match
 from .skill_gap_analysis import skill_gap_analysis
 from .recruitment_rules import evaluate_recruitment_rules
 from .llm_explainable_ai import generate_explainable_report
+from .llm_service import MODEL_NAME as LLM_MODEL_NAME
+
+
+LLM_PROVIDER_NAME = "Ollama (local)"
+
+AI_PIPELINE_VERSION = "1.0.0"
 
 
 ALLOWED_DECISIONS = [
@@ -76,14 +82,20 @@ def compute_final_score(
       LLM Semantic Match     40%
       RAG Engine Policy      20%
 
-    NOTE (thesis honesty): rag_score defaults to a fixed placeholder
-    (80), NOT a live per-candidate RAG evidence score. The RAG
-    Assistant in this system answers POLICY questions from the
-    static knowledge base — it has no notion of "this candidate's
-    RAG score" to fetch. Treat this weight as reserved for a future
-    per-candidate policy-compliance check, not as data currently
-    being computed. If asked in the defense, this is the honest
-    answer: the 20% RAG term is not yet backed by a real signal.
+    UPDATED (thesis honesty): rag_score is now populated from a real
+    RAG query against the CSC legal/policy corpus (see
+    rag_screening_context.py + job_pipeline.py) whenever that query
+    succeeded at job-creation time. The `RAG_POLICY_SCORE_PLACEHOLDER`
+    default below is used ONLY as a fallback when the RAG/Ollama call
+    failed or returned no evidence — never as the normal case.
+
+    Known remaining limitation, state this honestly if asked: the
+    RAG query is keyed on job title only, computed once per job and
+    cached (see recruitment_pipeline.py), not re-run per candidate.
+    It answers "what does policy require for this type of role",
+    not "how well does this specific person's CV comply" — so this
+    term is currently identical for every applicant to the same job,
+    not yet a per-candidate compliance signal.
 
     If the rule engine's hard gate fails (eligible=False), the score
     is capped below the pass threshold regardless of how well
@@ -141,6 +153,14 @@ def recruitment_pipeline(application):
                 "Job AI Profile has not been generated."
             )
 
+        # Knowledge-Infused Screening: reuse the RAG policy context
+        # cached on the job at creation time (see job_pipeline.py).
+        # This is a per-job snapshot, not a per-candidate query --
+        # copied onto the Application so the evidence a given
+        # decision relied on stays fixed even if the job's cached
+        # context were ever recomputed later.
+        rag_context = application.job.ai_rag_context or {}
+
         # =====================================
         # STEP 1
         # Candidate Intelligence Profile
@@ -191,7 +211,8 @@ def recruitment_pipeline(application):
             job_profile=job_profile,
             rule_result=rule_result,
             semantic_result=semantic_result,
-            gap_result=gap_result
+            gap_result=gap_result,
+            rag_context=rag_context
         )
 
         rule_eligible = rule_result.get("eligible", False)
@@ -200,10 +221,26 @@ def recruitment_pipeline(application):
 
         semantic_score = semantic_result.get("overall_score", 0)
 
+        # Dynamic RAG score: best_evidence_score is a 0-1 float from
+        # the RAG evidence gate, scaled to the same 0-100 range as
+        # the other two components. If the cached job context is
+        # missing, empty, or recorded an error (RAG/Ollama was
+        # unreachable when the job was created), fall back to the
+        # static placeholder rather than silently scoring every
+        # candidate for that job as 0 through no fault of their own.
+        if rag_context.get("error") or not rag_context.get("evidence"):
+
+            rag_score = RAG_POLICY_SCORE_PLACEHOLDER
+
+        else:
+
+            rag_score = rag_context.get("best_evidence_score", 0) * 100
+
         final_score = compute_final_score(
             rule_eligible=rule_eligible,
             skill_match_score=skill_match_score,
-            semantic_score=semantic_score
+            semantic_score=semantic_score,
+            rag_score=rag_score
         )
 
         # =====================================
@@ -219,6 +256,8 @@ def recruitment_pipeline(application):
         application.ai_semantic_result = semantic_result
 
         application.ai_skill_gap = gap_result
+
+        application.ai_rag_context = rag_context
 
         application.ai_explainable_report = report
 
@@ -236,6 +275,16 @@ def recruitment_pipeline(application):
             "recommendation",
             ""
         )
+
+        # Audit Trail (Phase 18): record which model/provider/version
+        # actually produced this decision, rather than relying on the
+        # field's static default -- so the value here is genuinely
+        # traceable even if the model or version changes later.
+        application.ai_model = LLM_MODEL_NAME
+
+        application.ai_provider = LLM_PROVIDER_NAME
+
+        application.ai_version = AI_PIPELINE_VERSION
 
         application.ai_processing_time = round(
             perf_counter() - start,
