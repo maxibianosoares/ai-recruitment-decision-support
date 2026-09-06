@@ -12,18 +12,63 @@ DEFAULT_REPORT = {
 }
 
 
+def _format_rag_context(rag_context):
+    """
+    Renders the cached job-level RAG evidence as short prompt text.
+    Defensive against None, missing keys, or an empty evidence list
+    (e.g. RAG/Ollama was unreachable when the job was created) --
+    always returns a usable string, never raises.
+    """
+
+    rag_context = rag_context or {}
+
+    evidence = rag_context.get("evidence") or []
+
+    if not evidence:
+        return (
+            "No retrieved regulatory context is available for this "
+            "job (RAG evidence was empty or unavailable). Do not "
+            "invent a legal citation -- rely on the Rule-Based "
+            "Evaluation above for compliance questions instead."
+        )
+
+    lines = []
+
+    for item in evidence[:3]:
+
+        if not isinstance(item, dict):
+            continue
+
+        document = item.get("document", "Unknown document")
+
+        excerpt = item.get("excerpt") or item.get("evidence") or ""
+
+        lines.append(f"- ({document}) {excerpt}")
+
+    return "\n".join(lines) if lines else (
+        "No retrieved regulatory context is available for this job."
+    )
+
+
 def generate_explainable_report(
     profile,
     job_profile,
     rule_result,
     semantic_result,
-    gap_result
+    gap_result,
+    rag_context=None
 ):
+
+    rag_context_text = _format_rag_context(rag_context)
 
     prompt = f"""
 You are a senior HR recruitment expert.
 
 Review all recruitment evidence below and make the final hiring recommendation.
+Evaluate candidate compatibility based on the retrieved national civil service
+regulations provided in the context below, alongside the CV and rule/semantic
+evidence. If the retrieved context does not cover a point, say so rather than
+inventing a citation.
 
 Candidate Profile
 
@@ -44,6 +89,11 @@ Semantic Matching
 Skill Gap Analysis
 
 {json.dumps(gap_result, indent=2)}
+
+Retrieved National Civil Service Regulations (RAG context, applies to
+this job category generally, not specifically to this one candidate)
+
+{rag_context_text}
 
 Return ONLY JSON.
 
