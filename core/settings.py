@@ -202,3 +202,5 @@ DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL",
     "no-reply@ai-recruitment.local"
 )
+
+EMAIL_TIMEOUT = 10
