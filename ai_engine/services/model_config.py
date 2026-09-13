@@ -107,12 +107,33 @@ OLLAMA_TIMEOUT_SECONDS = 300
 # API" -- https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api
 # This is Google's own hosted access to the SAME Gemma model family
 # used locally, not a different model and not a third-party service.
+#
+# IMPORTANT -- verified 2026-09-13, found during real STEP 3.2 testing
+# (not from static docs alone, an actual HTTP 404 surfaced this):
+#   1. Google's hosted Gemma endpoint has moved on from Gemma 3 to
+#      Gemma 4 -- as of this date it lists gemma-4-31b-it and
+#      gemma-4-26b-a4b-it as the supported models, NOT gemma-3-4b-it
+#      (which is what's used locally via Ollama). Requesting an
+#      unsupported model name returns HTTP 404, not a model-specific
+#      error, which is easy to misread as an auth problem.
+#   2. Google is also mid-migration to a new API key format ("AQ."
+#      auth keys replacing the older "AIzaSy..." standard keys). The
+#      new AQ. keys are REJECTED (also as HTTP 404, not 401/403) when
+#      sent the old way, as a `?key=...` URL query parameter -- they
+#      must be sent as the `x-goog-api-key` HTTP header instead. This
+#      code already does that below. If you generated your API key
+#      after this migration, it will only work with the header form.
+#   3. Net effect: the deployed model is necessarily a different
+#      (larger) Gemma generation than the local Ollama baseline. This
+#      is an environment constraint on the hosted API, not a project
+#      decision -- document it plainly as a deployment-vs-local
+#      difference if it comes up in the thesis.
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
 
 ONLINE_GEMMA_API_KEY = os.getenv("ONLINE_GEMMA_API_KEY", "")
 
-ONLINE_GEMMA_MODEL = os.getenv("ONLINE_GEMMA_MODEL", "gemma-3-4b-it")
+ONLINE_GEMMA_MODEL = os.getenv("ONLINE_GEMMA_MODEL", "gemma-4-26b-a4b-it")
 
 ONLINE_GEMMA_BASE_URL = os.getenv(
     "ONLINE_GEMMA_BASE_URL",
@@ -153,7 +174,20 @@ def call_online_gemma(prompt, want_json=True):
         f"{ONLINE_GEMMA_MODEL}:generateContent"
     )
 
-    generation_config = {"temperature": 0.1}
+    generation_config = {
+        "temperature": 0.1,
+        # Verified 2026-09-13 via real testing against a live
+        # GitHub-reported issue for this exact model family
+        # (google-gemini/cookbook#1198): lowercase "minimal" is
+        # accepted by the API without error but does NOT reliably
+        # suppress thinking output for gemma-4-*. Uppercase "MINIMAL"
+        # is the confirmed-working value.
+        "thinkingConfig": {"thinkingLevel": "MINIMAL"},
+        # Explicit generous budget -- thinking tokens (even near-zero
+        # ones under MINIMAL) are counted against this, so leave
+        # headroom for the actual visible answer.
+        "maxOutputTokens": 4096
+    }
 
     if want_json:
         generation_config["responseMimeType"] = "application/json"
@@ -169,7 +203,10 @@ def call_online_gemma(prompt, want_json=True):
 
         response = requests.post(
             url,
-            params={"key": ONLINE_GEMMA_API_KEY},
+            headers={
+                "x-goog-api-key": ONLINE_GEMMA_API_KEY,
+                "Content-Type": "application/json"
+            },
             json=payload,
             timeout=ONLINE_GEMMA_TIMEOUT_SECONDS
         )
@@ -189,7 +226,30 @@ def call_online_gemma(prompt, want_json=True):
     data = response.json()
 
     try:
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+        parts = data["candidates"][0]["content"]["parts"]
+
+        # Gemma 4 (with thinking enabled at any level, including
+        # MINIMAL) returns the thinking content as a SEPARATE part
+        # marked "thought": true, followed by the actual answer in a
+        # later part -- confirmed 2026-09-13 via real API response:
+        # parts[0] = {"text": "", "thought": true}, parts[1] =
+        # {"text": "OK"}. Blindly reading parts[0] (the old code)
+        # returns the thought part, which is empty once MINIMAL
+        # actually suppresses thinking content -- not a sign the
+        # model failed to answer. Skip any part flagged as a thought
+        # and join the rest.
+        text = "".join(
+            part.get("text", "")
+            for part in parts
+            if not part.get("thought", False)
+        )
+
+        if not text:
+            raise RuntimeError(
+                f"No non-thought text found in response parts: {parts}"
+            )
+
+        return text
     except (KeyError, IndexError) as e:
         raise RuntimeError(
             f"Unexpected online Gemma response shape: {data}"
