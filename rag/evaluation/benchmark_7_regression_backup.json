@@ -1,0 +1,37 @@
+[
+  {
+    "id": "S01",
+    "question": "Can AI replace human recruiter?",
+    "expected": "supported"
+  },
+  {
+    "id": "S02",
+    "question": "What information should every AI recommendation provide?",
+    "expected": "supported"
+  },
+  {
+    "id": "S03",
+    "question": "What is the purpose of the AI recruitment policy?",
+    "expected": "supported"
+  },
+  {
+    "id": "P01",
+    "question": "What does the AI recruitment system do and what salary should the selected candidate receive?",
+    "expected": "partially_supported"
+  },
+  {
+    "id": "P02",
+    "question": "Can AI rank candidates and determine their monthly salary?",
+    "expected": "partially_supported"
+  },
+  {
+    "id": "U01",
+    "question": "What is the monthly salary of a civil servant in Timor-Leste?",
+    "expected": "unsupported"
+  },
+  {
+    "id": "U02",
+    "question": "Who is the current President of Timor-Leste?",
+    "expected": "unsupported"
+  }
+]

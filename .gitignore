@@ -1,0 +1,84 @@
+# =========================
+# Python
+# =========================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+# =========================
+# Virtual Environment
+# =========================
+
+venv/
+.venv/
+env/
+ENV/
+
+# =========================
+# Django
+# =========================
+
+*.log
+db.sqlite3
+db.sqlite3-journal
+
+# =========================
+# Environment Variables
+# =========================
+
+.env
+.env.*
+!.env.example
+
+# =========================
+# IDE
+# =========================
+
+.vscode/
+.idea/
+
+# =========================
+# OS
+# =========================
+
+.DS_Store
+Thumbs.db
+
+# =========================
+# Python tools
+# =========================
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# Django media
+# =========================
+
+media/
+
+# =========================
+# Uploaded CV / user files
+# =========================
+
+uploads/
+private/
+user_uploads/
+
+# =========================
+# AI / Model cache
+# =========================
+
+.cache/
+huggingface/
+transformers_cache/
+
+
+# =========================
+# Temporary files
+# =========================
+
+*.tmp
+*.temp

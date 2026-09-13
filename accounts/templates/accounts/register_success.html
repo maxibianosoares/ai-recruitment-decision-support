@@ -1,0 +1,3 @@
+{% extends 'base.html' %}
+{% block title %}Registration Successful · AI Civil Service{% endblock %}
+{% block content %}<div class="row justify-content-center py-5"><div class="col-md-6"><div class="page-card p-4 text-center"><h2 class="h5 fw-bold mb-3">Registration successful</h2><p>We have sent a verification email to <strong>{{ email }}</strong>.</p><p>Please check your inbox and verify your email before logging in.</p><a href="{% url 'login' %}" class="btn btn-tl mt-2">Go to Login</a><p class="small text-muted mt-3 mb-0">Didn't get the email? <a href="{% url 'resend_verification' %}">Resend verification email</a></p></div></div></div>{% endblock %}

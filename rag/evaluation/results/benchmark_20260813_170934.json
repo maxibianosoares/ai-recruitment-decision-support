@@ -1,0 +1,124 @@
+{
+    "timestamp": "20260813_170934",
+    "metrics": {
+        "total_questions": 7,
+        "classification_accuracy": 0.8571428571428571,
+        "supported_accuracy": 1.0,
+        "partial_accuracy": 0.5,
+        "unsupported_accuracy": 1.0,
+        "average_evidence_score": 0.5194641181400844,
+        "grounded_rate": 0.8571428571428571,
+        "false_acceptance": 0,
+        "false_rejection": 0
+    },
+    "results": [
+        {
+            "id": "S01",
+            "question": "Can AI replace human recruiter?",
+            "expected": "supported",
+            "actual": "supported",
+            "retrieval_status": "supported",
+            "classification_correct": true,
+            "best_evidence_score": 0.6986392736434937,
+            "confidence": 69.86,
+            "grounded": true,
+            "unsupported_claims": [],
+            "answer": "AI shall assist HR officers but shall never replace final human decisions.",
+            "sources": [
+                "knowledge_base/documents/ai_recruitment_policy.pdf"
+            ]
+        },
+        {
+            "id": "S02",
+            "question": "What information should every AI recommendation provide?",
+            "expected": "supported",
+            "actual": "supported",
+            "retrieval_status": "supported",
+            "classification_correct": true,
+            "best_evidence_score": 0.7166446447372437,
+            "confidence": 71.66,
+            "grounded": true,
+            "unsupported_claims": [],
+            "answer": "Every AI recommendation must provide: \n- Overall Score\n- Matching Reason\n- Strengths\n- Weaknesses\n- Skill Gap Analysis\n- Confidence Score",
+            "sources": [
+                "knowledge_base/documents/ai_recruitment_policy.pdf"
+            ]
+        },
+        {
+            "id": "S03",
+            "question": "What is the purpose of the AI recruitment policy?",
+            "expected": "supported",
+            "actual": "supported",
+            "retrieval_status": "supported",
+            "classification_correct": true,
+            "best_evidence_score": 0.8436649441719055,
+            "confidence": 84.37,
+            "grounded": true,
+            "unsupported_claims": [],
+            "answer": "The objective is to ensure recruitment is: \n- Fair\n- Transparent\n- Accountable\n- Explainable\n- Merit-based",
+            "sources": [
+                "knowledge_base/documents/ai_recruitment_policy.pdf"
+            ]
+        },
+        {
+            "id": "P01",
+            "question": "What does the AI recruitment system do and what salary should the selected candidate receive?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "retrieval_status": "supported",
+            "classification_correct": false,
+            "best_evidence_score": 0.7245983481407166,
+            "confidence": 72.46,
+            "grounded": true,
+            "unsupported_claims": [],
+            "answer": "The AI recruitment system assists with resume screening, candidate ranking, skill matching, interview recommendation, and recruitment analytics.",
+            "sources": [
+                "knowledge_base/documents/ai_recruitment_policy.pdf"
+            ]
+        },
+        {
+            "id": "P02",
+            "question": "Can AI rank candidates and determine their monthly salary?",
+            "expected": "partially_supported",
+            "actual": "partially_supported",
+            "retrieval_status": "partially_supported",
+            "classification_correct": true,
+            "best_evidence_score": 0.6527016162872314,
+            "confidence": 65.27,
+            "grounded": false,
+            "unsupported_claims": [
+                "I don't have enough evidence for that part."
+            ],
+            "answer": "I don't have enough evidence for that part.",
+            "sources": []
+        },
+        {
+            "id": "U01",
+            "question": "What is the monthly salary of a civil servant in Timor-Leste?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "retrieval_status": "unknown",
+            "classification_correct": true,
+            "best_evidence_score": 0,
+            "confidence": 49.49,
+            "grounded": true,
+            "unsupported_claims": [],
+            "answer": "I don't have enough evidence.",
+            "sources": []
+        },
+        {
+            "id": "U02",
+            "question": "Who is the current President of Timor-Leste?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "retrieval_status": "unknown",
+            "classification_correct": true,
+            "best_evidence_score": 0,
+            "confidence": 38.76,
+            "grounded": true,
+            "unsupported_claims": [],
+            "answer": "I don't have enough evidence.",
+            "sources": []
+        }
+    ]
+}
