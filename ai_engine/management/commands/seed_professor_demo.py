@@ -26,11 +26,16 @@ applicant (see recruitment_pipeline.py's own error handling) -- this
 command does not fake a result.
 """
 
+import os
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
+from accounts.models import Role, Permission
 from talent.models import Job, Skill, Candidate, Application
 from ai_engine.services.recruitment_pipeline import recruitment_pipeline
 from ai_engine.services.job_pipeline import process_job
@@ -167,6 +172,68 @@ class Command(BaseCommand):
                  "names first, then reseed.",
         )
 
+    def _ensure_admin_user(self):
+        """
+        Idempotent -- safe to call on every single deploy (this is
+        the whole point: no more editing Build Command to add this
+        temporarily then remove it again). Only creates/updates
+        anything if ADMIN_USERNAME is actually set as an environment
+        variable; does nothing otherwise, so this is also safe to
+        leave in place for local development where those variables
+        are never set.
+        """
+
+        username = os.environ.get("ADMIN_USERNAME", "").strip()
+
+        if not username:
+            return
+
+        email = os.environ.get("ADMIN_EMAIL", "").strip()
+        password = os.environ.get("ADMIN_PASSWORD", "").strip()
+
+        if not password:
+            self.stdout.write(
+                self.style.WARNING(
+                    "ADMIN_USERNAME is set but ADMIN_PASSWORD is not -- "
+                    "skipping admin user setup."
+                )
+            )
+            return
+
+        User = get_user_model()
+
+        role, _ = Role.objects.get_or_create(name="Super Admin")
+
+        permission, _ = Permission.objects.get_or_create(
+            code="recruitment_manage",
+            defaults={"name": "Manage Recruitment"}
+        )
+
+        role.permissions.add(permission)
+
+        user, created = User.objects.get_or_create(
+            username=username,
+            defaults={"email": email}
+        )
+
+        user.set_password(password)
+        user.is_verified = True
+        user.is_staff = True
+        user.is_superuser = True
+        user.is_active = True
+        user.role = role
+
+        if email:
+            user.email = email
+
+        user.save()
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Admin user '{username}' ready (created={created})."
+            )
+        )
+
     def handle(self, *args, **options):
 
         if FPDF is None:
@@ -176,6 +243,8 @@ class Command(BaseCommand):
                 )
             )
             return
+
+        self._ensure_admin_user()
 
         if options["reset"]:
             Job.objects.filter(title=JOB_TITLE).delete()
