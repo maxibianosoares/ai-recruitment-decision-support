@@ -73,11 +73,15 @@ def register_view(request):
 
             try:
                 _send_verification_email(request, user)
-            except Exception:
+            except Exception as e:
                 # Registration itself still succeeded -- don't lose
-                # the created account over an SMTP hiccup. The user
-                # can use "resend verification" once mail is working.
-                pass
+                # the created account over an SMTP/API hiccup. The
+                # user can use "resend verification" once mail is
+                # working. But the failure must not vanish silently --
+                # print it so it's visible in Render's runtime logs,
+                # since this swallowed every previous email failure
+                # without a trace.
+                print(f"Verification email send failed (register): {e}")
 
             return render(
                 request,
@@ -133,8 +137,8 @@ def resend_verification_view(request):
         if user is not None:
             try:
                 _send_verification_email(request, user)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Verification email send failed (resend): {e}")
 
         # Always show the same confirmation regardless of whether
         # the email exists or was already verified -- do not reveal
