@@ -76,13 +76,30 @@ class BrevoAPIEmailBackend(BaseEmailBackend):
             except requests.exceptions.RequestException as e:
 
                 if not self.fail_silently:
-                    # Same reasoning as model_config.py's online-Gemma
-                    # error handling: don't let the raw exception
-                    # (which could include response body/URL details)
-                    # propagate unfiltered into logs.
+                    # Unlike model_config.py's online-Gemma backend,
+                    # the API key here has always been sent via the
+                    # "api-key" HEADER, never the URL -- so unlike
+                    # that case, it's safe to surface Brevo's actual
+                    # JSON error body (it only ever contains Brevo's
+                    # own error code/message, never the key itself).
+                    # Withholding it was over-cautious and made this
+                    # 401 undiagnosable from logs alone.
                     status = getattr(e.response, "status_code", "unknown")
+
+                    brevo_detail = ""
+                    if e.response is not None:
+                        try:
+                            body = e.response.json()
+                            brevo_detail = (
+                                f" Brevo response: code={body.get('code')} "
+                                f"message={body.get('message')}"
+                            )
+                        except ValueError:
+                            brevo_detail = f" Brevo response: {e.response.text[:200]}"
+
                     raise RuntimeError(
                         f"Brevo email send failed (HTTP {status})."
+                        f"{brevo_detail}"
                     ) from None
 
         return sent_count
