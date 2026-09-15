@@ -140,7 +140,20 @@ ONLINE_GEMMA_BASE_URL = os.getenv(
     "https://generativelanguage.googleapis.com/v1beta"
 )
 
-ONLINE_GEMMA_TIMEOUT_SECONDS = 60
+ONLINE_GEMMA_TIMEOUT_SECONDS = 45
+# Lowered from 60 (2026-09-15, approved fix for recurring worker
+# timeout incident in AI Assistant / question_decomposer). Two
+# separate production incidents showed the actual hang lasting
+# 5-9 MINUTES despite this timeout being set to 60s -- requests'
+# read-timeout can be reset by a connection that trickles data
+# slowly rather than staying fully silent, so the nominal timeout
+# value doesn't reliably bound total wait time. This alone doesn't
+# fix that underlying behavior, but widens the safety margin to
+# gunicorn's hard 120s worker timeout (see Procfile) -- if this
+# call is going to hang, cutting it at 45s leaves more room for the
+# rest of the request (RAG retrieval, response building) to still
+# finish inside gunicorn's limit, and gives the user a clean error
+# instead of a SIGKILLed connection.
 
 
 def call_online_gemma(prompt, want_json=True):
