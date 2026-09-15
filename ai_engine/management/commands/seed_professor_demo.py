@@ -39,6 +39,7 @@ from accounts.models import Role, Permission
 from talent.models import Job, Skill, Candidate, Application
 from ai_engine.services.recruitment_pipeline import recruitment_pipeline
 from ai_engine.services.job_pipeline import process_job
+from ai_engine.services.embedding_engine import embedding_engine
 
 try:
     from fpdf import FPDF
@@ -234,6 +235,54 @@ class Command(BaseCommand):
             )
         )
 
+    def _warmup_embedding_model(self):
+        """
+        Forces the embedding model (BAAI/bge-base-en-v1.5) to
+        download and load NOW, during the build command, instead of
+        during the first user's AI Assistant / RAG request in a
+        fresh worker.
+
+        Root cause this fixes (2026-09-15 production incident): the
+        model is lazy-loaded (see embedding_engine.py's own docstring
+        for why) -- the FIRST call to .encode() in a freshly-started
+        worker triggers a ~400MB download from Hugging Face Hub. On
+        Render's network this can take longer than gunicorn's
+        configured 120s request timeout, causing the worker handling
+        that user's request to be SIGKILLed mid-request -- the user
+        sees a broken/empty response, not a clean error.
+
+        This calls the exact same encode() path a real request uses
+        (no shortcut, no mock) with a throwaway string, so by the
+        time this command finishes, the model is downloaded and
+        cached on disk -- moving that wait out of the 120s request
+        window and into the build step, which has no such limit.
+
+        Read-only with respect to the database: does not touch RAG's
+        FAISS index, does not run a retrieval query, does not create
+        or modify any Job/Candidate/Application/Skill/User row.
+        """
+
+        self.stdout.write("Warming up embedding model (BAAI/bge-base-en-v1.5)...")
+
+        try:
+            embedding_engine.encode("warmup")
+            self.stdout.write(
+                self.style.SUCCESS(
+                    "Embedding model downloaded and cached."
+                )
+            )
+        except Exception as e:
+            # Non-fatal on purpose: if this fails (e.g. no network
+            # during build), seeding should still proceed -- the
+            # first real request will just fall back to the old
+            # (slower, at-risk-of-timeout) lazy-load behavior, not
+            # break the whole deploy.
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Embedding model warmup did not complete: {e}"
+                )
+            )
+
     def handle(self, *args, **options):
 
         if FPDF is None:
@@ -244,6 +293,7 @@ class Command(BaseCommand):
             )
             return
 
+        self._warmup_embedding_model()
         self._ensure_admin_user()
 
         if options["reset"]:
