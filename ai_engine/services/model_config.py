@@ -212,6 +212,8 @@ def call_online_gemma(prompt, want_json=True):
         "generationConfig": generation_config
     }
 
+    print(f"[DEBUG-KEY-CHECK] provider=online_gemma model={ONLINE_GEMMA_MODEL} key_len={len(ONLINE_GEMMA_API_KEY)} key_prefix={ONLINE_GEMMA_API_KEY[:6]!r} key_suffix={ONLINE_GEMMA_API_KEY[-4:]!r}")
+
     try:
 
         response = requests.post(
