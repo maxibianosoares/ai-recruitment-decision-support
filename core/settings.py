@@ -236,3 +236,4 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 # development / SMTP-capable hosts, EMAIL_BACKEND stays as the
 # console/SMTP backend above and this key is simply unused.
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+STATIC_ROOT = BASE_DIR / "staticfiles"
