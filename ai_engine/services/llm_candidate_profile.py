@@ -60,6 +60,24 @@ DEFAULT_PROFILE = {
     "professional_summary": ""
 }
 
+# Same root cause and fix as ai_engine/services/llm_job_parser.py's
+# analyze_job_description() (diagnosed 2026-09-25, see
+# ai_engine/diagnose_job_parser_bug.py output): under format="json"
+# grammar-constrained decoding, gemma3:4b via Ollama occasionally stops
+# generating after 2 tokens and returns the literal string "{}" instead
+# of the full structured JSON. Confirmed live for THIS function too
+# (candidate "Maria da Costa" application, 2026-09-25: console showed
+# "===== PROFILE RESPONSE =====\n{}", which produced an empty
+# candidate profile and cascaded into a false "Not Recommended 0%"
+# result -- not because the candidate lacked qualifications, but
+# because the CV was never actually parsed). Retrying the SAME
+# unmodified generate_json() call up to MAX_ATTEMPTS times is the same
+# minimal mitigation applied to the job parser: no prompt change, no
+# schema change, no model change, no change to analyze_cv()'s return
+# contract (still returns an empty dict, unchanged, if every attempt
+# is empty).
+MAX_ATTEMPTS = 3
+
 
 def analyze_cv(cv_text):
 
@@ -94,26 +112,35 @@ CV
 {cv_text}
 """
 
-    try:
+    last_result = {}
 
-        result = generate_json(
-            prompt=prompt
-        )
+    for attempt in range(1, MAX_ATTEMPTS + 1):
 
-        print("\n===== PROFILE RESPONSE =====\n")
-        print(json.dumps(result, indent=4))
-        print("\n============================\n")
+        try:
 
-        return result
+            result = generate_json(
+                prompt=prompt
+            )
 
-    except Exception as e:
+            print(f"\n===== PROFILE RESPONSE (attempt {attempt}/{MAX_ATTEMPTS}) =====\n")
+            print(json.dumps(result, indent=4))
+            print("\n============================\n")
 
-        print(f"Candidate Profile Error: {e}")
+            if result:
+                return result
 
-        profile = DEFAULT_PROFILE.copy()
-        profile["error"] = str(e)
+            last_result = result
 
-        return profile
+        except Exception as e:
+
+            print(f"Candidate Profile Error (attempt {attempt}/{MAX_ATTEMPTS}): {e}")
+
+            profile = DEFAULT_PROFILE.copy()
+            profile["error"] = str(e)
+
+            last_result = profile
+
+    return last_result
 
 
 def analyze_cv_to_dict(cv_text):
