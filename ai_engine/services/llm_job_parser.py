@@ -15,6 +15,21 @@ DEFAULT_JOB_PROFILE = {
     "professional_summary": ""
 }
 
+# Root cause (diagnosed 2026-09-25, see ai_engine/diagnose_job_parser_bug.py
+# output): under format="json" grammar-constrained decoding, gemma3:4b via
+# Ollama occasionally (confirmed nondeterministic -- 4/9 calls in a live
+# sample, byte-identical prompt each time) stops generating after 2 tokens
+# and returns the literal string "{}" (done_reason="stop", eval_count=2)
+# instead of the full structured JSON. json.loads("{}") succeeds -- this is
+# not an exception, not a timeout, not a prompt/schema/model difference --
+# it is upstream LLM sampling variance for this specific call. Retrying the
+# SAME unmodified generate_json() call is the direct, minimal mitigation:
+# no prompt change, no schema change, no model change, no change to the
+# function's return contract (still returns an empty dict, unchanged, if
+# every attempt is empty -- process_job()'s existing "if not profile" check
+# is untouched and still the final safety net).
+MAX_ATTEMPTS = 3
+
 
 def analyze_job_description(job_description):
 
@@ -55,23 +70,32 @@ Job Description
 {job_description}
 """
 
-    try:
+    last_result = {}
 
-        result = generate_json(
-            prompt=prompt
-        )
+    for attempt in range(1, MAX_ATTEMPTS + 1):
 
-        print("\n===== JOB PARSER RESPONSE =====\n")
-        print(json.dumps(result, indent=4))
-        print("\n===============================\n")
+        try:
 
-        return result
+            result = generate_json(
+                prompt=prompt
+            )
 
-    except Exception as e:
+            print(f"\n===== JOB PARSER RESPONSE (attempt {attempt}/{MAX_ATTEMPTS}) =====\n")
+            print(json.dumps(result, indent=4))
+            print("\n===============================\n")
 
-        print(f"Job Parser Error: {e}")
+            if result:
+                return result
 
-        profile = DEFAULT_JOB_PROFILE.copy()
-        profile["error"] = str(e)
+            last_result = result
 
-        return profile
+        except Exception as e:
+
+            print(f"Job Parser Error (attempt {attempt}/{MAX_ATTEMPTS}): {e}")
+
+            profile = DEFAULT_JOB_PROFILE.copy()
+            profile["error"] = str(e)
+
+            last_result = profile
+
+    return last_result

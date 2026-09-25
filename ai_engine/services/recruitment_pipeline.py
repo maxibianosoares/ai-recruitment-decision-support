@@ -1,3 +1,5 @@
+import json
+
 from concurrent.futures import ThreadPoolExecutor
 from time import perf_counter
 
@@ -8,6 +10,8 @@ from .llm_reasoning import generate_recruitment_assessment, split_assessment
 from .skill_gap_analysis import skill_gap_analysis
 from .recruitment_rules import evaluate_recruitment_rules
 from .model_config import MODEL_NAME as LLM_MODEL_NAME
+from .model_config import NEW_CANDIDATE_RAG
+from .candidate_legal_rag import get_candidate_legal_evidence
 
 
 LLM_PROVIDER_NAME = "Ollama (local)"
@@ -203,6 +207,48 @@ def recruitment_pipeline(application):
             gap_result = future_gap.result()
 
         # =====================================
+        # STEP 2.5 (Phase 21, research, gated by NEW_CANDIDATE_RAG)
+        # Candidate-Specific Legal RAG
+        #
+        # Runs AFTER the rule engine so it can use rule_result["matrix"]
+        # to target only the dimensions that actually have a gap
+        # (see candidate_legal_rag.py). Runs BEFORE the fused
+        # reasoning call so the evidence can be included in its
+        # prompt. Never raises -- degrades to {} on any failure so
+        # application submission is never blocked by this step
+        # (design report Section E / instruction #18).
+        # =====================================
+
+        candidate_legal_evidence = {}
+
+        candidate_rag_stats = None
+
+        if NEW_CANDIDATE_RAG:
+
+            try:
+
+                candidate_legal_evidence, candidate_rag_stats = (
+                    get_candidate_legal_evidence(
+                        profile=profile,
+                        job_profile=job_profile,
+                        rule_result=rule_result
+                    )
+                )
+
+                print("\n===== CANDIDATE LEGAL RAG =====")
+                print(json.dumps(candidate_rag_stats, indent=2))
+                print("================================\n")
+
+            except Exception as e:
+
+                # Belt-and-braces -- get_candidate_legal_evidence()
+                # already catches internally and should never raise,
+                # but this step must be unconditionally non-fatal.
+                print("Candidate Legal RAG Error:", str(e))
+
+                candidate_legal_evidence = {}
+
+        # =====================================
         # STEP 3
         # Fused Semantic Matching + Explainable AI
         # (Phase 20 / F1: ONE LLM call producing both the
@@ -216,7 +262,8 @@ def recruitment_pipeline(application):
             job_profile=job_profile,
             rule_result=rule_result,
             gap_result=gap_result,
-            rag_context=rag_context
+            rag_context=rag_context,
+            candidate_legal_evidence=candidate_legal_evidence
         )
 
         semantic_result, report = split_assessment(assessment)
@@ -263,7 +310,31 @@ def recruitment_pipeline(application):
 
         application.ai_skill_gap = gap_result
 
-        application.ai_rag_context = rag_context
+        # Backward-compatible storage (instruction #17): every
+        # existing job-level key (query/answer/evidence/
+        # best_evidence_score/grounded/error) stays flat at the top
+        # level exactly as Phase 1-20 wrote it, so compute_final_score()
+        # above and every existing template/consumer that reads
+        # application.ai_rag_context.get("best_evidence_score") etc.
+        # needs no change. "candidate_legal_evidence" is added as one
+        # extra key, present only when NEW_CANDIDATE_RAG actually ran;
+        # absent (not an error) otherwise -- so `.get(
+        # "candidate_legal_evidence", {})` is always safe downstream.
+        #
+        # (Deliberate deviation from the literal {"job_context": {},
+        # "candidate_legal_evidence": {}} nested shape suggested in
+        # the design brief: that would require updating every
+        # existing flat-key consumer of ai_rag_context -- exactly the
+        # kind of broad, riskier change instruction #2/#27 asks to
+        # avoid for this first pass. Flagged here explicitly rather
+        # than silently diverging.)
+        application.ai_rag_context = {
+            **rag_context,
+            **(
+                {"candidate_legal_evidence": candidate_legal_evidence}
+                if candidate_legal_evidence else {}
+            )
+        }
 
         application.ai_explainable_report = report
 

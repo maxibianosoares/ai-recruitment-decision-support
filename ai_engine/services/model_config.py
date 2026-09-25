@@ -131,6 +131,23 @@ OLLAMA_TIMEOUT_SECONDS = 300
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
 
+# =====================================================================
+# CANDIDATE-SPECIFIC LEGAL RAG -- feature flag (research, Phase 21)
+# =====================================================================
+# False -> OLD_RAG: unchanged Phase 1-20 behavior. Every candidate for
+#          a given job sees the same job.ai_rag_context (see
+#          rag_screening_context.py). This is the production default.
+# True  -> NEW_CANDIDATE_RAG: recruitment_pipeline.py additionally
+#          calls ai_engine/services/candidate_legal_rag.py to retrieve
+#          per-candidate legal evidence for the specific requirement
+#          gaps found by the existing deterministic rule engine
+#          (recruitment_rules.py). Research-only until explicitly
+#          approved for Railway production.
+#
+# Must stay False on Railway/production until explicit approval --
+# do not flip the default here; override with the env var locally.
+NEW_CANDIDATE_RAG = os.getenv("NEW_CANDIDATE_RAG", "False").strip().lower() == "true"
+
 ONLINE_GEMMA_API_KEY = os.getenv("ONLINE_GEMMA_API_KEY", "")
 
 ONLINE_GEMMA_MODEL = os.getenv("ONLINE_GEMMA_MODEL", "gemma-4-26b-a4b-it")

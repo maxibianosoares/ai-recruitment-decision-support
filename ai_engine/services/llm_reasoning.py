@@ -58,21 +58,91 @@ ALLOWED_DECISIONS = [
 ]
 
 
+def _format_candidate_legal_evidence(candidate_legal_evidence):
+    """
+    Phase 21 (research, NEW_CANDIDATE_RAG). Additive formatting only
+    -- does not touch _format_rag_context (the existing job-level
+    formatter, unchanged). Returns "" when there is nothing to add
+    (OLD_RAG, or every dimension came back not_applicable), so the
+    prompt is byte-identical to before this change whenever the
+    feature flag is off.
+    """
+
+    if not candidate_legal_evidence:
+        return ""
+
+    lines = []
+
+    for dimension, result in candidate_legal_evidence.items():
+
+        status = result.get("status", "not_applicable")
+
+        if status == "not_applicable":
+            continue
+
+        lines.append(f"- Dimension: {dimension}")
+        lines.append(f"  Evidence status: {status}")
+
+        for item in result.get("evidence", []):
+
+            excerpt = (item.get("verbatim_text") or "")[:400]
+
+            lines.append(
+                f"  Evidence ({item.get('source', 'unknown source')}, "
+                f"score={item.get('score', 0)}): {excerpt}"
+            )
+
+    if not lines:
+        return ""
+
+    return "\n".join(lines)
+
+
 def generate_recruitment_assessment(
     profile,
     job_profile,
     rule_result,
     gap_result,
-    rag_context=None
+    rag_context=None,
+    candidate_legal_evidence=None
 ):
     """
     ONE targeted LLM call producing both the per-dimension semantic
     match AND the explainable decision, grounded in the candidate
     profile, job profile, deterministic rule result, skill gap
     result, and the job's cached CSC legal/policy evidence.
+
+    candidate_legal_evidence (Phase 21, research, NEW_CANDIDATE_RAG
+    only): optional per-dimension targeted legal evidence from
+    candidate_legal_rag.py. When absent/empty (OLD_RAG, the
+    production default), the prompt is unchanged from Phase 1-20.
     """
 
     rag_context_text = _format_rag_context(rag_context)
+
+    candidate_legal_evidence_text = _format_candidate_legal_evidence(
+        candidate_legal_evidence
+    )
+
+    # Empty string when OLD_RAG (or every dimension was
+    # not_applicable) -- prompt stays byte-identical to Phase 1-20
+    # in that case, nothing new is inserted.
+    candidate_section = ""
+
+    if candidate_legal_evidence_text:
+
+        candidate_section = f"""
+Candidate-Specific Legal Evidence (targeted retrieval for THIS
+candidate's specific gaps against THIS job's requirements -- in
+addition to, not a replacement for, the general regulations above.
+This is grounding context only; it does NOT by itself determine
+eligibility -- the Rule-Based Evaluation above remains the
+authoritative source for whether the candidate meets mandatory
+requirements. A missing or insufficient evidence status here does
+NOT mean the candidate is unqualified, and a found evidence status
+does NOT mean the candidate is qualified.)
+{candidate_legal_evidence_text}
+"""
 
     prompt = f"""You are a senior HR recruitment expert evaluating a candidate for a civil service position.
 
@@ -119,7 +189,7 @@ Skill Gap Analysis
 Retrieved National Civil Service Regulations (applies to this job
 category generally, not specifically to this one candidate)
 {rag_context_text}
-
+{candidate_section}
 All numeric scores are integers from 0 to 100. Keep each reasoning entry to
 one short sentence. Return ONLY this JSON, no markdown, no extra text:
 
