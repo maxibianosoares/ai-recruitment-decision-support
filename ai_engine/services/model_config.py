@@ -87,6 +87,24 @@ OLLAMA_GENERATE_URL = f"{OLLAMA_BASE_URL.rstrip('/')}/api/generate"
 # the Phase 20 report for actual measured durations.
 OLLAMA_TIMEOUT_SECONDS = 300
 
+# Phase 22 (performance, candidate #2 -- keep model warm in memory):
+# Ollama's own default keep_alive is "5m" -- it unloads the model
+# from memory 5 minutes after the last request. On this hardware
+# (CPU-only inference, see MODEL SELECTION RECORD above), reloading
+# gemma3:4b from disk is a measured, real cost: Phase 22 profiling
+# (phase22_profile_pipeline.py, run against a real application,
+# 2026-09-25) showed the FIRST LLM call of a script run taking 31.73s
+# vs 12.30-12.71s on immediately-following calls -- consistent with a
+# cold-start/reload penalty, not variance in the prompt or input.
+# Raising keep_alive to 30 minutes only changes how long Ollama keeps
+# the model resident in RAM between requests; it does not change the
+# model, the prompt, the response, or any correctness-relevant
+# behavior, and is fully reversible (delete this line / unset the env
+# var to return to Ollama's own default). Override locally with
+# OLLAMA_KEEP_ALIVE if needed (e.g. "-1" to never unload, or "5m" to
+# revert to Ollama's default for a control-group benchmark run).
+OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "30m")
+
 # =====================================================================
 # EMERGENCY DEPLOYMENT (public demo) -- provider selection
 # =====================================================================
