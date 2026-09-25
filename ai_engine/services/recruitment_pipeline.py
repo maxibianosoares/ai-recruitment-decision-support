@@ -5,7 +5,7 @@ from time import perf_counter
 
 from django.utils import timezone
 
-from .llm_candidate_profile import analyze_cv
+from .llm_candidate_profile import analyze_cv, DEFAULT_PROFILE
 from .llm_reasoning import generate_recruitment_assessment, split_assessment
 from .skill_gap_analysis import skill_gap_analysis
 from .recruitment_rules import evaluate_recruitment_rules
@@ -178,6 +178,55 @@ def recruitment_pipeline(application):
         profile = analyze_cv(
             cv_text
         )
+
+        # Bug fix (2026-09-25): analyze_cv() can legitimately exhaust
+        # MAX_ATTEMPTS and return a plain {} when the LLM's JSON-mode
+        # decoding stalls (see llm_candidate_profile.py comment) -- this
+        # is a TECHNICAL PARSING FAILURE, not a candidate with an empty
+        # CV. A real (even weak) profile always carries the schema's
+        # keys, just with empty/zero values, per DEFAULT_PROFILE and the
+        # prompt's own "Missing information should be empty" rule. A
+        # dict missing every one of those keys is only reachable via the
+        # {} failure path, so it is a safe, narrow signal -- it can't
+        # misclassify a genuinely sparse but successfully-parsed CV.
+        #
+        # Routed through the SAME existing failure mechanism this
+        # pipeline already uses for every other precondition failure
+        # above (empty CV text, missing job profile): raise, and the
+        # existing except block below records ai_status="FAILED" with
+        # the reason in ai_feedback, saves the application, and
+        # re-raises -- talent/views.py already catches that and tells
+        # the candidate/recruiter the AI analysis could not complete,
+        # instead of this silently becoming a false "Not Recommended
+        # 0%" screening decision. No new decision logic, no Rule Engine
+        # change, no scoring change.
+        #
+        # Second bug (audited 2026-09-25, confirmed via mocked
+        # simulation -- see scratchpad/simulate_cv_parse_failure.py,
+        # no real candidate data used): the FIRST branch above only
+        # catches the "all 3 attempts returned a literal {}" case. A
+        # separate failure shape exists -- generate_json() raising an
+        # EXCEPTION on all 3 attempts -- for which analyze_cv()'s own
+        # except-block (llm_candidate_profile.py) returns
+        # DEFAULT_PROFILE.copy() plus an "error" key. That dict DOES
+        # carry every DEFAULT_PROFILE key, so it silently passed the
+        # first check and would have been fed to the Rule Engine as if
+        # it were a real (if empty) candidate profile -- simulation
+        # confirmed this produces a normal-looking eligible=False
+        # rule result instead of a detected technical failure.
+        # "error" is not a field in DEFAULT_PROFILE / the CV-parsing
+        # schema, so its presence at the top level of `profile` is
+        # only ever produced by that one except-block -- a safe,
+        # narrow signal that adds no new decision logic, just widens
+        # the existing failure guard to this second proven shape.
+        if not any(key in profile for key in DEFAULT_PROFILE) or "error" in profile:
+
+            raise ValueError(
+                "CV parsing failed after multiple attempts: the AI "
+                "service returned no structured profile data. This is "
+                "a technical failure, not a candidate qualification "
+                "assessment."
+            )
 
         # =====================================
         # STEP 2
