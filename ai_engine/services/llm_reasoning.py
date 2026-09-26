@@ -229,6 +229,18 @@ one short sentence. Return ONLY this JSON, no markdown, no extra text:
 
         raw = generate_json(prompt=prompt, default=None, num_predict=num_predict)
 
+        # Diagnostic-only addition (2026-09-26): unlike analyze_cv() and
+        # analyze_job_description(), this function never printed the raw
+        # LLM response, so a "successful" (non-exception) but degenerate
+        # response (e.g. all-zero scores, empty reasoning/recommendation)
+        # was invisible in production logs -- there was no way to tell
+        # a genuinely low-effort LLM answer apart from a deeper problem.
+        # Pure visibility: does not change what is validated, returned,
+        # or how any decision is made.
+        print(f"\n===== FUSED REASONING RAW RESPONSE =====\n")
+        print(json.dumps(raw, indent=4) if isinstance(raw, (dict, list)) else raw)
+        print("\n=========================================\n")
+
         if not raw:
             raise ValueError("Empty response from Ollama.")
 
