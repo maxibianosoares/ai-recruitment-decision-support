@@ -13,8 +13,22 @@ from .model_config import (
 
 def generate_json(
     prompt,
-    default=None
+    default=None,
+    num_predict=None
 ):
+    """
+    num_predict (Phase 23, controlled experiment ONLY): optional cap on
+    the number of tokens Ollama generates for this call. Default is
+    None, which means the payload sent to Ollama is BYTE-IDENTICAL to
+    before this parameter existed (no "options" key at all) -- so
+    every existing caller (analyze_cv, generate_recruitment_assessment,
+    and anything that doesn't pass this) keeps its exact current
+    behavior with zero change. Only a caller that explicitly passes a
+    number gets a capped generation -- used by
+    phase23_num_predict_benchmark.py to compare configurations without
+    touching production behavior until an experiment result is
+    reviewed and approved.
+    """
 
     try:
 
@@ -36,6 +50,12 @@ def generate_json(
                 # prompt, the model, or the generated response.
                 "keep_alive": OLLAMA_KEEP_ALIVE
             }
+
+            if num_predict is not None:
+                # Phase 23 experiment path only -- omitted entirely
+                # (not even an empty "options": {}) when num_predict is
+                # not passed, so the default request shape is unchanged.
+                payload["options"] = {"num_predict": num_predict}
 
             response = requests.post(
                 OLLAMA_GENERATE_URL,

@@ -104,7 +104,8 @@ def generate_recruitment_assessment(
     rule_result,
     gap_result,
     rag_context=None,
-    candidate_legal_evidence=None
+    candidate_legal_evidence=None,
+    num_predict=None
 ):
     """
     ONE targeted LLM call producing both the per-dimension semantic
@@ -116,6 +117,11 @@ def generate_recruitment_assessment(
     only): optional per-dimension targeted legal evidence from
     candidate_legal_rag.py. When absent/empty (OLD_RAG, the
     production default), the prompt is unchanged from Phase 1-20.
+
+    num_predict (Phase 23, controlled experiment ONLY): forwarded
+    unchanged to generate_json(). Default None -- exact current
+    behavior. Only set by phase23_num_predict_benchmark.py; no
+    production caller passes this today.
     """
 
     rag_context_text = _format_rag_context(rag_context)
@@ -221,7 +227,7 @@ one short sentence. Return ONLY this JSON, no markdown, no extra text:
 
     try:
 
-        raw = generate_json(prompt=prompt, default=None)
+        raw = generate_json(prompt=prompt, default=None, num_predict=num_predict)
 
         if not raw:
             raise ValueError("Empty response from Ollama.")
