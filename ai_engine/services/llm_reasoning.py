@@ -21,12 +21,15 @@ field, or downstream consumer needed to change.
 """
 
 import json
+import logging
 
 from .model_config import MODEL_NAME
 from .llm_service import generate_json
 from .llm_candidate_profile import MULTILINGUAL_INSTRUCTION
 from .llm_explainable_ai import _format_rag_context
 from .llm_semantic_matcher import clamp_score, extract_json
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_DIMENSION_SCORES = {
@@ -240,6 +243,41 @@ one short sentence. Return ONLY this JSON, no markdown, no extra text:
         print(f"\n===== FUSED REASONING RAW RESPONSE =====\n")
         print(json.dumps(raw, indent=4) if isinstance(raw, (dict, list)) else raw)
         print("\n=========================================\n")
+
+        # Root cause fix (2026-09-26, confirmed live via the print above,
+        # candidate "Joao Martins" / job "Junior Web Developer"): THIRD
+        # confirmed occurrence of the same online_gemma array-wrapping
+        # shape already fixed in analyze_cv() and
+        # analyze_job_description() -- here it was silent and more
+        # dangerous than either of those, because there was no
+        # dict-vs-list guard at all. _normalize_assessment()'s
+        # `dict(raw_result) if isinstance(raw_result, dict) else {}`
+        # treated the wrapping list as "not a dict" and threw the ENTIRE
+        # real assessment away, replacing a fully-reasoned response
+        # (overall_score=33, decision="Not Recommended", confidence=100,
+        # full reasoning/strengths/weaknesses/risks/recommendation) with
+        # silent all-zero/empty defaults and decision "Consider" -- with
+        # ai_status left at "SUCCESS", so nothing on the application
+        # record even hinted the real decision was discarded.
+        #
+        # Same narrow rule as the other two fixes: unwrap ONLY a list
+        # containing exactly one dict. Any other shape (empty list,
+        # multiple objects, non-dict items) is left untouched, so it
+        # still reaches _normalize_assessment()'s existing
+        # isinstance(dict) guard and degrades to the same safe defaults
+        # as before -- no guessing, no fabricating a result.
+        if (
+            isinstance(raw, list)
+            and len(raw) == 1
+            and isinstance(raw[0], dict)
+        ):
+            logger.warning(
+                "generate_recruitment_assessment: LLM returned a "
+                "single-item JSON array instead of a bare object; "
+                "unwrapping it into the expected assessment object "
+                "(original_type=list, normalized_type=dict)."
+            )
+            raw = raw[0]
 
         if not raw:
             raise ValueError("Empty response from Ollama.")
