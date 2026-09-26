@@ -1,8 +1,11 @@
 import json
+import logging
 
 from .llm_service import generate_json
 # from .local_llm import generate_json
 from .llm_candidate_profile import MULTILINGUAL_INSTRUCTION
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_JOB_PROFILE = {
@@ -29,6 +32,46 @@ DEFAULT_JOB_PROFILE = {
 # every attempt is empty -- process_job()'s existing "if not profile" check
 # is untouched and still the final safety net).
 MAX_ATTEMPTS = 3
+
+
+def _normalize_job_profile_result(result, attempt):
+    """
+    Second confirmed occurrence of the same shape bug fixed in
+    llm_candidate_profile.py._normalize_profile_result() (2026-09-26):
+    online_gemma can wrap this function's JSON response in a
+    single-item array ([{...}]) instead of returning the bare object
+    ({...}). The old `if result:` truthiness check below accepted the
+    non-empty list as-is, so a job's ai_job_profile could be stored as
+    a LIST -- which then made recruitment_pipeline.py's
+    `job_profile.get("skills", [])` raise
+    "'list' object has no attribute 'get'" for every application to
+    that job, a technical failure surfacing to candidates as "the AI
+    analysis could not be completed."
+
+    Same narrow rule as the candidate-profile fix: unwrap ONLY a list
+    containing exactly one dict. Every other shape is returned
+    untouched, so the existing retry/failure path still governs it --
+    no guessing, no fabricating a dict from something that isn't
+    already a single object.
+    """
+    if isinstance(result, dict):
+        return result
+
+    if (
+        isinstance(result, list)
+        and len(result) == 1
+        and isinstance(result[0], dict)
+    ):
+        logger.warning(
+            "analyze_job_description attempt %s: LLM returned a "
+            "single-item JSON array instead of a bare object; "
+            "unwrapping it into the expected job profile object "
+            "(original_type=list, normalized_type=dict).",
+            attempt
+        )
+        return result[0]
+
+    return result
 
 
 def analyze_job_description(job_description):
@@ -80,11 +123,13 @@ Job Description
                 prompt=prompt
             )
 
+            result = _normalize_job_profile_result(result, attempt)
+
             print(f"\n===== JOB PARSER RESPONSE (attempt {attempt}/{MAX_ATTEMPTS}) =====\n")
             print(json.dumps(result, indent=4))
             print("\n===============================\n")
 
-            if result:
+            if isinstance(result, dict) and result:
                 return result
 
             last_result = result
