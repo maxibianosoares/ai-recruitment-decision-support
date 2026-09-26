@@ -1,6 +1,9 @@
 import json
+import logging
 
 from .llm_service import generate_json
+
+logger = logging.getLogger(__name__)
 
 MULTILINGUAL_INSTRUCTION = """
 The CV and Job Description may be written in English, Portuguese, Tetum,
@@ -79,7 +82,57 @@ DEFAULT_PROFILE = {
 MAX_ATTEMPTS = 3
 
 
-def analyze_cv(cv_text):
+def _normalize_profile_result(result, attempt):
+    """
+    Root-cause fix (2026-09-26, confirmed via Railway production log,
+    candidate "Maria da Costa", provider=online_gemma
+    model=gemma-4-26b-a4b-it): that model occasionally wraps the
+    profile object in a single-item JSON array ([{...}]) instead of
+    returning the bare object ({...}). json.loads() succeeds either
+    way (both are syntactically valid JSON), so the old `if result:`
+    truthiness check accepted the list as-is on attempt 1 -- then
+    recruitment_pipeline.py's DEFAULT_PROFILE guard (`key in profile`)
+    silently failed against a list instead of a dict, misclassifying
+    a fully and correctly parsed profile as a technical CV parsing
+    failure. The candidate's data was never actually missing -- only
+    its shape was wrong.
+
+    Unwraps ONLY the one unambiguous shape: a list containing exactly
+    one dict. Every other shape -- empty list, multiple objects, a
+    list of non-dict items, a bare string, etc. -- is returned
+    untouched, so the existing retry/failure path still governs it.
+    This never guesses which of several objects to keep, and never
+    fabricates a dict from something that isn't already a single
+    object.
+    """
+    if isinstance(result, dict):
+        return result
+
+    if (
+        isinstance(result, list)
+        and len(result) == 1
+        and isinstance(result[0], dict)
+    ):
+        logger.warning(
+            "analyze_cv attempt %s: LLM returned a single-item JSON "
+            "array instead of a bare object; unwrapping it into the "
+            "expected profile object (original_type=list, "
+            "normalized_type=dict).",
+            attempt
+        )
+        return result[0]
+
+    return result
+
+
+def analyze_cv(cv_text, num_predict=None):
+    """
+    num_predict (Phase 23, controlled experiment ONLY): forwarded
+    unchanged to generate_json(). Default None -- exact current
+    behavior, no change to the request sent to Ollama. Only set by
+    phase23_num_predict_benchmark.py to compare configurations; no
+    production caller passes this today.
+    """
 
     prompt = f"""
 You are an expert AI Recruitment Analyst.
@@ -119,14 +172,17 @@ CV
         try:
 
             result = generate_json(
-                prompt=prompt
+                prompt=prompt,
+                num_predict=num_predict
             )
+
+            result = _normalize_profile_result(result, attempt)
 
             print(f"\n===== PROFILE RESPONSE (attempt {attempt}/{MAX_ATTEMPTS}) =====\n")
             print(json.dumps(result, indent=4))
             print("\n============================\n")
 
-            if result:
+            if isinstance(result, dict) and result:
                 return result
 
             last_result = result
