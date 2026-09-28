@@ -4,6 +4,9 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
 from accounts.decorators import permission_required
 from .models import Job
+from django.core.paginator import Paginator
+from django.db.models import Q
+
 from django.shortcuts import (
     render,
     redirect,
@@ -168,13 +171,31 @@ def candidate_detail(request, application_id):
 
 def job_list(request):
 
-    jobs = Job.objects.all()
+    query = (request.GET.get("q") or "").strip()
+
+    jobs = Job.objects.all().order_by("-id")
+
+    if query:
+
+        jobs = jobs.filter(
+            Q(title__icontains=query)
+            | Q(department__icontains=query)
+            | Q(description__icontains=query)
+        )
+
+    paginator = Paginator(jobs, 9)
+
+    page_obj = paginator.get_page(
+        request.GET.get("page")
+    )
 
     return render(
         request,
         'talent/job_list.html',
         {
-            'jobs': jobs
+            'jobs': page_obj,
+            'page_obj': page_obj,
+            'query': query
         }
     )
 
@@ -222,21 +243,33 @@ def apply_job(request, job_id):
 
     existing_candidate = getattr(request.user, "candidate_profile", None)
 
-    if existing_candidate is not None and Application.objects.filter(
-        candidate=existing_candidate, job=job
-    ).exists():
+    if existing_candidate is not None and existing_candidate.full_name:
+        applicant_full_name = existing_candidate.full_name
+    else:
+        applicant_full_name = (request.user.first_name or "").strip()
 
-        messages.warning(
-            request,
-            "You have already applied to this position."
-        )
-
-        return redirect("job_detail", job_id=job.id)
+    if existing_candidate is not None and existing_candidate.email:
+        applicant_email = existing_candidate.email
+    else:
+        applicant_email = (request.user.email or "").strip()
 
     if request.method == "POST":
 
-        full_name = request.POST.get("full_name")
-        email = request.POST.get("email")
+        if not applicant_full_name or not applicant_email:
+
+            messages.error(
+                request,
+                "Your account is missing a full name or email address. "
+                "Please update your profile before applying."
+            )
+
+            return redirect(
+                "apply_job",
+                job_id=job.id
+            )
+
+        full_name = applicant_full_name
+        email = applicant_email
         cv_file = request.FILES.get("cv_file")
 
         # =====================================
@@ -388,10 +421,12 @@ def apply_job(request, job_id):
         )
 
     return render(
-        request,
-        "talent/apply_job.html",
+    request,
+    "talent/apply_job.html",
         {
-            "job": job
+            "job": job,
+            "applicant_full_name": applicant_full_name,
+            "applicant_email": applicant_email
         }
     )
 
@@ -416,6 +451,8 @@ def candidate_cv_text(request, candidate_id):
 @permission_required("recruitment_manage")
 def candidate_ranking(request):
 
+    query = (request.GET.get("q") or "").strip()
+
     applications = (
         Application.objects
         .select_related(
@@ -427,11 +464,27 @@ def candidate_ranking(request):
         )
     )
 
+    if query:
+
+        applications = applications.filter(
+            Q(candidate__full_name__icontains=query)
+            | Q(job__title__icontains=query)
+            | Q(ai_decision__icontains=query)
+        )
+
+    paginator = Paginator(applications, 15)
+
+    page_obj = paginator.get_page(
+        request.GET.get("page")
+    )
+
     return render(
         request,
         'talent/candidate_ranking.html',
         {
-            'applications': applications
+            'applications': page_obj,
+            'page_obj': page_obj,
+            'query': query
         }
     )
 
@@ -439,13 +492,30 @@ def candidate_ranking(request):
 @permission_required("recruitment_manage")
 def ranking_jobs(request):
 
-    jobs = Job.objects.all()
+    query = (request.GET.get("q") or "").strip()
+
+    jobs = Job.objects.all().order_by("-id")
+
+    if query:
+
+        jobs = jobs.filter(
+            Q(title__icontains=query)
+            | Q(department__icontains=query)
+        )
+
+    paginator = Paginator(jobs, 9)
+
+    page_obj = paginator.get_page(
+        request.GET.get("page")
+    )
 
     return render(
         request,
         'talent/ranking_jobs.html',
         {
-            'jobs': jobs
+            'jobs': page_obj,
+            'page_obj': page_obj,
+            'query': query
         }
     )
 

@@ -109,42 +109,16 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# username admin password: admin
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'ai_recruitment',
-#         'USER': 'root',
-#         'PASSWORD': '',
-#         'HOST': '127.0.0.1',
-#         'PORT': '3309',  # sesuaikan dengan XAMPP kamu
-#     }
-# }
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            'timeout': 20,
+        },
     }
 }
 
-# If DATABASE_URL is set (Render provides this automatically once a
-# Postgres instance is created and linked to this web service), use
-# that instead of SQLite. Local development is completely unaffected
-# -- no DATABASE_URL is set there, so SQLITE above stays in effect,
-# exactly as before. This is a config-only change: Job/Candidate/
-# Application/etc. model code and the entire AI/RAG pipeline never
-# reference the database engine directly, so nothing else changes.
-#
-# WHY THIS MATTERS (read before removing this block): Render's Free
-# web services have an EPHEMERAL filesystem -- any local file,
-# including a SQLite database, is wiped every time the service spins
-# down (which happens automatically after 15 minutes with no
-# traffic) or redeploys. This is documented, permanent Render
-# platform behavior, not something fixable via Build Command changes
-# or app code. Render Postgres is a separate managed service not
-# subject to that -- once DATABASE_URL points there, seeded data
-# survives spin-downs and redeploys.
 import dj_database_url
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
@@ -154,6 +128,20 @@ if DATABASE_URL:
         DATABASE_URL,
         conn_max_age=600
     )
+
+
+from django.db.backends.signals import connection_created
+
+
+def _enable_sqlite_wal_mode(sender, connection, **kwargs):
+
+    if connection.vendor == "sqlite":
+
+        with connection.cursor() as cursor:
+            cursor.execute("PRAGMA journal_mode=WAL;")
+
+
+connection_created.connect(_enable_sqlite_wal_mode)
 
 
 AUTH_PASSWORD_VALIDATORS = [

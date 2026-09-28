@@ -231,7 +231,7 @@ def user_create(request):
 @login_required
 
 @permission_required(
-    "user_update"
+    "user_edit"
 )
 
 

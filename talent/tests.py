@@ -178,7 +178,7 @@ class SelfApplicationTests(TestCase):
 
         self.user = User.objects.create_user(
             username="applicant1", password="pass12345",
-            email="applicant1@x.com",
+            email="applicant1@x.com", first_name="Applicant One",
             role=self.candidate_role, is_verified=True
         )
 
