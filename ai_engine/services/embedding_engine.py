@@ -1,6 +1,28 @@
+import os
+
 from sentence_transformers import SentenceTransformer
 
-MODEL_NAME = "BAAI/bge-base-en-v1.5"
+# =====================================================================
+# CROSS-LINGUAL RETRIEVAL FIX (2026-09-23) -- evidence-based root cause:
+# knowledge base is predominantly Portuguese legal/policy text, but
+# queries are frequently English. The English-only default below
+# (BAAI/bge-base-en-v1.5) was confirmed via live audit to rank the
+# correct Portuguese evidence chunk (policy.pdf, "Artigo 14.o --
+# Requisitos") at #22 out of the full corpus for a representative
+# English query, well outside any retrieval top_k in use -- so the
+# claim-level evidence check never saw it.
+#
+# EMBEDDING_MODEL lets this be swapped to a multilingual model without
+# touching any calling code (rag/retriever.py, rag/build_index.py) --
+# same pattern already used for ONLINE_GEMMA_MODEL in model_config.py.
+# Default is UNCHANGED so production behavior does not shift until a
+# new index is built and benchmarked and EMBEDDING_MODEL is
+# deliberately set.
+# =====================================================================
+
+DEFAULT_MODEL_NAME = "BAAI/bge-base-en-v1.5"
+
+MODEL_NAME = os.getenv("EMBEDDING_MODEL", DEFAULT_MODEL_NAME)
 
 
 class EmbeddingEngine:
@@ -29,10 +51,11 @@ class EmbeddingEngine:
 
     def __init__(self):
         self._model = None
+        self._model_name = MODEL_NAME
 
     def _get_model(self):
         if self._model is None:
-            self._model = SentenceTransformer(MODEL_NAME)
+            self._model = SentenceTransformer(self._model_name)
         return self._model
 
     def encode(self, text):

@@ -36,6 +36,28 @@ STRICT RULES:
 8. For questions containing multiple independent
    requests, create one claim for each request.
 
+9. NEVER drop a qualifier that restricts or specifies
+   the claim. This includes (but is not limited to):
+   current, currently, right now, today, as of [date],
+   presently, latest, existing, exact, specific,
+   precise, minimum, maximum, at least, at most, named
+   persons, dates, locations, and numeric constraints.
+   Dropping these words changes what the claim is
+   actually asking and can cause a claim about the
+   CURRENT state of a fact to be silently answered with
+   HISTORICAL or general evidence instead.
+
+10. If the question follows the pattern
+    "[general/established statement] - but
+    [specific question]", or joins a general statement
+    and a specific question with "but", "however", or a
+    similar contrast marker, you MUST generate ONE claim
+    for the general statement AND a SEPARATE claim for
+    the specific question -- even when the general
+    statement is not itself phrased as a question. Do
+    NOT collapse this pattern into a single claim that
+    only captures the specific question.
+
 Examples:
 
 Question:
@@ -69,6 +91,42 @@ salary should the selected candidate receive?"
 Correct:
 C1: What does the AI recruitment system do?
 C2: What salary should the selected candidate receive?
+
+---
+
+Question:
+"The Chairperson can assign functions to commissioners
+- but who specifically holds that position right now?"
+
+Correct:
+C1: The Chairperson can assign functions to commissioners
+C2: Who specifically holds that position right now?
+
+Incorrect:
+C1: Who specifically holds the position of Chairperson?
+
+The incorrect version above is wrong for two reasons:
+it drops the general statement entirely, AND it drops
+the qualifier "right now", turning a question about the
+CURRENT office holder into a generic question that old,
+historical evidence could wrongly appear to answer.
+
+---
+
+Question:
+"Public servants are entitled to several types of paid
+leave - but how many days of annual leave is a new
+recruit entitled to in their first year?"
+
+Correct:
+C1: Public servants are entitled to several types of
+paid leave
+C2: How many days of annual leave is a new recruit
+entitled to in their first year?
+
+Incorrect:
+C1: How many days of annual leave is a new recruit
+entitled to in their first year?
 
 Return ONLY valid JSON.
 

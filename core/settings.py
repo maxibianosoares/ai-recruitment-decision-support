@@ -32,6 +32,12 @@ DEBUG = os.environ.get("DEBUG", "True") == "True"
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/accounts/dashboard/'
 
+
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_AGE = 1200  # 20 minutes
+SESSION_SAVE_EVERY_REQUEST = True  # idle clock resets on activity
+
+
 ALLOWED_HOSTS = os.environ.get(
     "ALLOWED_HOSTS",
     "localhost,127.0.0.1"

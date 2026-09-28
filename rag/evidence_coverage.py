@@ -256,6 +256,90 @@ class EvidenceCoverage:
 
         12. Do not infer current status from historical evidence.
 
+        SCOPE MATCHING RULE (VERY IMPORTANT):
+
+        13. Evidence that is only topically or thematically related to
+        the claim is NOT sufficient. Being about the same general
+        subject area (e.g. "recruitment", "salary", "scoring",
+        "leave") is not enough. The evidence must be about the SAME
+        specific actor, scheme, population, or category that the
+        claim names -- not a different one that merely resembles it.
+
+        14. Before answering supported=true, check whether the
+        evidence is actually about the SAME subject the claim names:
+            - If the claim names a specific actor ("the AI system"),
+              the evidence must say something about that actor
+              specifically -- not about a general legal/human process
+              that happens to cover similar ground.
+            - If the claim asks about a general population ("a civil
+              servant", "public servants" in general), evidence about
+              a different, narrower scheme (e.g. a specific negotiated
+              contract category, a specific job grade, a specific
+              eligibility track) does NOT support the general claim
+              unless the evidence explicitly says it applies to that
+              general population.
+            - If the evidence answers a related but different
+              question than the one asked, answer supported=false.
+
+        Example (reject -- wrong actor):
+
+        QUESTION:
+        What exact score threshold does the AI system use to reject
+        a candidate?
+
+        EVIDENCE:
+        "In the final classification, a scale of 0 to 100 points is
+        adopted. Candidates who obtain a score below 60 points are
+        considered not approved."
+
+        CORRECT:
+        supported = false
+
+        REASON:
+        The evidence describes a general legal classification
+        threshold used in the recruitment process, but it does not
+        establish that this threshold is specifically used by "the
+        AI system." The claim names the AI system specifically, and
+        the evidence never mentions AI.
+
+        Example (reject -- wrong population/scheme):
+
+        QUESTION:
+        What is the monthly salary of a civil servant in
+        Timor-Leste?
+
+        EVIDENCE:
+        "All long-term contracts must be remunerated at a monthly
+        rate. The initial salary offered during negotiation to
+        Timorese citizens must be the minimum value stipulated in
+        Tables 1 and 2, combined with task complexity and academic
+        qualifications."
+
+        CORRECT:
+        supported = false
+
+        REASON:
+        The evidence describes a negotiated salary scheme for a
+        specific category of long-term contracted hires, not the
+        general salary of a regular civil servant. It does not
+        establish the monthly salary of civil servants in general.
+
+        Example (accept -- same subject, different wording is fine):
+
+        QUESTION:
+        Can AI replace human recruiters?
+
+        EVIDENCE:
+        "AI shall assist HR officers but shall never replace final
+        human decisions."
+
+        CORRECT:
+        supported = true
+
+        REASON:
+        The evidence directly discusses AI's role relative to human
+        recruiters, which is exactly the subject of the claim.
+
         Return ONLY valid JSON:
 
         {{

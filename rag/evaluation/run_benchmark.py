@@ -19,17 +19,19 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from rag.rag_pipeline import rag_pipeline
 
+# =====================================================================
+# SOURCE OF TRUTH FIX (2026-09-23) -- this used to load from
+# benchmark_40.json, a 7-entry file left over from an earlier phase
+# (its questions are identical to the 7-case test_rag_regression.py
+# set). The real 40-question matrix
+# (direct_evidence/partial_evidence/unsupported/temporal/
+# recruitment_specific) lives in rag/evaluation/questions.py
+# (BENCHMARK_QUESTIONS) and was never actually wired into this
+# script. Fixed to import that directly instead of reading the stale
+# JSON file -- questions.py is not modified by this change.
+# =====================================================================
 
-# =========================================================
-# BENCHMARK FILE
-# =========================================================
-
-BENCHMARK_FILE = (
-    PROJECT_ROOT
-    / "rag"
-    / "evaluation"
-    / "benchmark_40.json"
-)
+from rag.evaluation.questions import BENCHMARK_QUESTIONS
 
 
 # =========================================================
@@ -50,14 +52,7 @@ OUTPUT_FILE = (
 
 def load_benchmark():
 
-    with open(
-        BENCHMARK_FILE,
-        "r",
-        encoding="utf-8"
-    ) as f:
-
-        return json.load(f)
-
+    return BENCHMARK_QUESTIONS
 
 # =========================================================
 # RUN BENCHMARK

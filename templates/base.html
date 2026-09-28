@@ -27,6 +27,16 @@
         .btn-tl { background:var(--tl-red); border-color:var(--tl-red); color:#fff; }
         .btn-tl:hover { background:#a90d26; border-color:#a90d26; color:#fff; }
         .badge-tl { background:#fff0f2;color:var(--tl-red); }
+        /* F-02 (Phase 28): Bootstrap's .badge is white-space:nowrap
+           by design (meant for short labels). job.department is a
+           free-text field with no length limit, so a long agency/
+           directorate name inside a plain .badge would overflow its
+           card instead of wrapping. This override only applies where
+           .badge-wrap is added explicitly (job_list.html and
+           ranking_jobs.html's department badge) -- every other badge
+           in the app (decision/status pills etc.) is untouched and
+           keeps the normal single-line badge look. */
+        .badge-wrap { white-space:normal; text-align:left; word-break:break-word; }
         .footer { background:#fff;border-top:1px solid #e7eaf0;color:#98a2b3; }
         .table thead th { color:#667085; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; background:#f8fafc; }
         .form-control,.form-select { border-radius:10px; padding:.65rem .8rem; }
@@ -38,6 +48,18 @@
 <div class="top-stripe"></div>
 <nav class="navbar navbar-expand-lg app-navbar sticky-top">
   <div class="container-fluid px-4">
+    {% if request.user.is_authenticated %}
+    <!-- F-01 (Phase 28): minimal Bootstrap-native toggle for the
+         responsive offcanvas sidebar below -- only rendered/visible
+         when there is a sidebar to toggle (authenticated users), and
+         only below the "md" breakpoint (same breakpoint the sidebar
+         already used for col-md-3, so tablet/desktop are unaffected). -->
+    <button class="btn btn-outline-secondary d-md-none me-2" type="button"
+            data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas"
+            aria-controls="sidebarOffcanvas" aria-label="Toggle navigation menu">
+      <i class="bi bi-list"></i>
+    </button>
+    {% endif %}
     <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="/accounts/dashboard/">
       <h1>🇹🇱</h1>
       <span><span class="d-block lh-1">AI Civil Service</span><small class="text-muted fw-normal">Timor-Leste</small></span>
@@ -54,7 +76,20 @@
   <div class="row">
     {% if request.user.is_authenticated %}
     {% with url_name=request.resolver_match.url_name %}
-    <aside class="col-md-3 col-lg-2 sidebar p-3">
+    <!-- F-01 (Phase 28): sidebar now uses Bootstrap's built-in
+         "responsive offcanvas" pattern (offcanvas-md). Below the
+         "md" breakpoint it becomes a slide-in panel toggled by the
+         hamburger button added to the navbar above; at "md" and
+         above it renders exactly as before (a normal, always-visible
+         grid column) -- same breakpoint the layout already used for
+         col-md-3/col-md-9, so tablet and desktop are unchanged. No
+         navigation links, structure or content below were altered. -->
+    <aside class="offcanvas-md offcanvas-start col-md-3 col-lg-2 sidebar" tabindex="-1" id="sidebarOffcanvas" aria-labelledby="sidebarOffcanvasLabel">
+      <div class="offcanvas-header d-md-none">
+        <h5 class="offcanvas-title" id="sidebarOffcanvasLabel">Menu</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#sidebarOffcanvas" aria-label="Close"></button>
+      </div>
+      <div class="offcanvas-body p-3 d-flex flex-column">
       <div class="sidebar-label">Platform</div>
       <nav class="nav flex-column">
         <a href="/accounts/dashboard/" class="nav-link{% if url_name == 'dashboard' %} active{% endif %}"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a>
@@ -87,6 +122,7 @@
       <div class="mt-4 p-3 rounded-3" style="background:#111;color:#fff">
         <div class="small fw-bold">República Democrática de Timor-Leste</div>
         <div class="small text-white-50 mt-1">Civil Service Decision Support</div>
+      </div>
       </div>
     </aside>
     {% endif %}

@@ -14,6 +14,8 @@ from django.shortcuts import (
     get_object_or_404
 )
 
+from talent.models import Application
+
 @login_required
 def logout_view(request):
 
@@ -67,9 +69,65 @@ def login_view(request):
 @login_required
 def dashboard(request):
 
+    # 2026-09-27: this view previously rendered dashboard.html with no
+    # context at all, so its stat tiles (Total Candidates, Highly
+    # Recommended, Recommended, Not Recommended) and the candidate
+    # table always rendered empty -- there is a separate,
+    # never-actually-used dashboard() in recruitment/views.py that
+    # already had the right aggregation shape, but it queried
+    # recruitment.CandidateResult, a model nothing in the AI pipeline
+    # ever writes to (confirmed: no .save()/.create() anywhere in the
+    # codebase). The real, live data the pipeline actually writes is
+    # on talent.Application (ai_score/ai_decision/ai_status, see
+    # ai_engine/services/recruitment_pipeline.py). Only applications
+    # the pipeline finished successfully (ai_status="SUCCESS") are
+    # counted, so an application still pending or one that hit a
+    # technical failure (ai_decision left blank) does not skew the
+    # decision breakdown.
+    applications = Application.objects.filter(
+        ai_status="SUCCESS"
+    ).select_related("candidate", "job").order_by("-ai_score")
+
+    total = applications.count()
+
+    highly = applications.filter(
+        ai_decision="Highly Recommended"
+    ).count()
+
+    recommended = applications.filter(
+        ai_decision="Recommended"
+    ).count()
+
+    consider = applications.filter(
+        ai_decision="Consider"
+    ).count()
+
+    not_recommended = applications.filter(
+        ai_decision="Not Recommended"
+    ).count()
+
+    candidates = [
+        {
+            "candidate_name": application.candidate.full_name,
+            "final_score": application.ai_score,
+            "decision": application.ai_decision,
+        }
+        for application in applications
+    ]
+
+    context = {
+        "total": total,
+        "highly": highly,
+        "recommended": recommended,
+        "consider": consider,
+        "not_recommended": not_recommended,
+        "candidates": candidates,
+    }
+
     return render(
         request,
-        'dashboard.html'
+        'dashboard.html',
+        context
     )
 
 
