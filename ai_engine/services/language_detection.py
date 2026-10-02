@@ -65,7 +65,7 @@ TETUM_STOPWORDS = {
 
 # Proportion of word tokens that must be Tetum stopwords before
 # translation triggers. See module docstring re: calibration.
-TETUM_SIGNIFICANCE_THRESHOLD = 0.08
+TETUM_SIGNIFICANCE_THRESHOLD = 0.05
 
 # Per TASK D: text too short for reliable detection -> skip
 # detection entirely, use existing fallback (no forced translation).
