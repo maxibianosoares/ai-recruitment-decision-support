@@ -1,4 +1,5 @@
 import os
+import threading
 
 from sentence_transformers import SentenceTransformer
 
@@ -52,10 +53,18 @@ class EmbeddingEngine:
     def __init__(self):
         self._model = None
         self._model_name = MODEL_NAME
+        # Task B/C fix: Skill Matching and the Rule Engine now call
+        # encode() from two parallel threads (recruitment_pipeline STEP 2).
+        # Without a lock both threads can load the model at the same time
+        # on the first request, which makes one of them fail or cache a
+        # broken model. The lock makes only one thread load it.
+        self._lock = threading.Lock()
 
     def _get_model(self):
         if self._model is None:
-            self._model = SentenceTransformer(self._model_name)
+            with self._lock:
+                if self._model is None:
+                    self._model = SentenceTransformer(self._model_name)
         return self._model
 
     def encode(self, text):

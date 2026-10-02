@@ -14,7 +14,8 @@ from .model_config import (
 def generate_json(
     prompt,
     default=None,
-    num_predict=None
+    num_predict=None,
+    json_schema=None
 ):
     """
     num_predict (Phase 23, controlled experiment ONLY): optional cap on
@@ -50,6 +51,14 @@ def generate_json(
                 # prompt, the model, or the generated response.
                 "keep_alive": OLLAMA_KEEP_ALIVE
             }
+
+            if json_schema is not None:
+                # Optional (job-parser retry only): pass a JSON Schema
+                # instead of the bare "json" format. Ollama then forces
+                # every required key to be generated, so the model cannot
+                # stop early with the empty "{}" it sometimes returns
+                # under format="json". Default None = payload unchanged.
+                payload["format"] = json_schema
 
             if num_predict is not None:
                 # Phase 23 experiment path only -- omitted entirely

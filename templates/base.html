@@ -10,7 +10,23 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
         :root { --tl-red:#C8102E; --tl-yellow:#F9E300; --tl-black:#111111; --tl-white:#fff; --ink:#172033; --muted:#667085; --surface:#f6f8fb; }
-        body { background:var(--surface); color:var(--ink); min-height:100vh; }
+        /* Sticky footer fix (2026-09-30): previously the footer was
+           only pushed to the bottom because .sidebar's min-height
+           trick below forced the row tall -- but that trick doesn't
+           apply on mobile, where the sidebar becomes an offcanvas
+           panel (removed from normal layout flow). On short-content
+           pages (Ranking, AI Assistant, Users, Profile) viewed on a
+           phone, the page was then shorter than the viewport, so the
+           footer floated in the middle instead of sitting at the
+           bottom. Fixed properly with flexbox: body is a column flex
+           container, the page's own container-fluid (targeted via
+           the child combinator so the navbar's separate
+           .container-fluid is untouched) grows to fill any leftover
+           space, and the footer just sits after it -- true regardless
+           of content length or sidebar/offcanvas state. */
+        body { background:var(--surface); color:var(--ink); min-height:100vh; display:flex; flex-direction:column; }
+        body > .container-fluid { flex:1 0 auto; display:flex; flex-direction:column; }
+        body > .container-fluid > .row { flex:1 0 auto; }
         .top-stripe { height:5px; background:linear-gradient(90deg,var(--tl-black) 0 42%,var(--tl-yellow) 42% 58%,var(--tl-red) 58% 100%); }
         .navbar-brand-mark { width:38px;height:38px;border-radius:10px;background:var(--tl-red);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:800;position:relative;overflow:hidden; }
         .navbar-brand-mark:after { content:""; width:0;height:0;border-top:9px solid transparent;border-bottom:9px solid transparent;border-left:15px solid var(--tl-yellow);position:absolute;left:11px; }
@@ -37,7 +53,7 @@
            in the app (decision/status pills etc.) is untouched and
            keeps the normal single-line badge look. */
         .badge-wrap { white-space:normal; text-align:left; word-break:break-word; }
-        .footer { background:#fff;border-top:1px solid #e7eaf0;color:#98a2b3; }
+        .footer { background:#fff;border-top:1px solid #e7eaf0;color:#98a2b3;flex-shrink:0; }
         .table thead th { color:#667085; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; background:#f8fafc; }
         .form-control,.form-select { border-radius:10px; padding:.65rem .8rem; }
         .form-control:focus,.form-select:focus { border-color:#e58a99; box-shadow:0 0 0 .2rem rgba(200,16,46,.10); }

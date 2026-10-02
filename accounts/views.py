@@ -27,13 +27,22 @@ def login_view(request):
 
     if request.method == 'POST':
 
-        username = request.POST.get('username')
+        email = (request.POST.get('email') or '').strip()
 
         password = request.POST.get('password')
 
+        # TASK F (2026-10-02): the login FORM only ever collects email
+        # + password (see login.html) -- there is no "username" field
+        # on the page. `email` is now the User model's USERNAME_FIELD
+        # (unique at the DB level -- see models.py), so this is a
+        # plain authenticate() call exactly like a normal
+        # username-based login would be, just with email in that
+        # role. `username` itself is kept on the model but is
+        # deliberately NOT unique anymore (see models.py comment), so
+        # it is never used to look anyone up here.
         user = authenticate(
             request,
-            username=username,
+            username=email,
             password=password
         )
 
@@ -57,7 +66,7 @@ def login_view(request):
         return render(
             request,
             'accounts/login.html',
-            {'error': 'Invalid username or password.'}
+            {'error': 'Invalid email or password.'}
         )
 
     return render(
@@ -231,7 +240,7 @@ def user_create(request):
 @login_required
 
 @permission_required(
-    "user_edit"
+    "user_update"
 )
 
 

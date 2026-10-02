@@ -1,12 +1,12 @@
 {
     "metrics": {
         "total_questions": 40,
-        "correct": 35,
-        "accuracy": 0.875,
-        "average_coverage": 0.525,
-        "average_evidence_score": 64.26275000000001,
-        "grounded_rate": 0.925,
-        "false_acceptance": 0,
+        "correct": 34,
+        "accuracy": 0.85,
+        "average_coverage": 0.5375,
+        "average_evidence_score": 68.50574999999999,
+        "grounded_rate": 0.875,
+        "false_acceptance": 1,
         "false_rejection": 1
     },
     "results": [
@@ -16,7 +16,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 66.14,
+            "evidence_score": 77.68,
             "grounded": true,
             "correct": true
         },
@@ -26,7 +26,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 63.38,
+            "evidence_score": 71.66,
             "grounded": true,
             "correct": true
         },
@@ -36,7 +36,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 85.13,
+            "evidence_score": 84.37,
             "grounded": true,
             "correct": true
         },
@@ -46,7 +46,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 77.1,
+            "evidence_score": 85.15,
             "grounded": true,
             "correct": true
         },
@@ -56,7 +56,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 78.03,
+            "evidence_score": 69.54,
             "grounded": true,
             "correct": true
         },
@@ -66,7 +66,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 80.57,
+            "evidence_score": 74.28,
             "grounded": true,
             "correct": true
         },
@@ -76,7 +76,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 80.12,
+            "evidence_score": 71.55,
             "grounded": true,
             "correct": true
         },
@@ -86,7 +86,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 72.1,
+            "evidence_score": 65.4,
             "grounded": true,
             "correct": true
         },
@@ -96,7 +96,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 71.24,
+            "evidence_score": 76.92,
             "grounded": true,
             "correct": true
         },
@@ -104,11 +104,11 @@
             "id": "DE10",
             "question": "What principle governs the selection and recruitment of personnel according to the civil service law?",
             "expected": "supported",
-            "actual": "unsupported",
-            "coverage": 0.0,
-            "evidence_score": 73.21,
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 77.28,
             "grounded": true,
-            "correct": false
+            "correct": true
         },
         {
             "id": "PE01",
@@ -116,7 +116,7 @@
             "expected": "partially_supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 68.51,
+            "evidence_score": 72.16,
             "grounded": true,
             "correct": false
         },
@@ -126,7 +126,7 @@
             "expected": "partially_supported",
             "actual": "partially_supported",
             "coverage": 0.5,
-            "evidence_score": 52.27,
+            "evidence_score": 65.27,
             "grounded": true,
             "correct": true
         },
@@ -136,7 +136,7 @@
             "expected": "partially_supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 65.6,
+            "evidence_score": 76.19,
             "grounded": true,
             "correct": false
         },
@@ -146,7 +146,7 @@
             "expected": "partially_supported",
             "actual": "partially_supported",
             "coverage": 0.5,
-            "evidence_score": 67.12,
+            "evidence_score": 62.22,
             "grounded": false,
             "correct": true
         },
@@ -156,7 +156,7 @@
             "expected": "partially_supported",
             "actual": "partially_supported",
             "coverage": 0.5,
-            "evidence_score": 67.11,
+            "evidence_score": 71.47,
             "grounded": false,
             "correct": true
         },
@@ -166,7 +166,7 @@
             "expected": "partially_supported",
             "actual": "partially_supported",
             "coverage": 0.5,
-            "evidence_score": 55.6,
+            "evidence_score": 63.02,
             "grounded": true,
             "correct": true
         },
@@ -176,7 +176,7 @@
             "expected": "partially_supported",
             "actual": "partially_supported",
             "coverage": 0.5,
-            "evidence_score": 74.9,
+            "evidence_score": 75.06,
             "grounded": true,
             "correct": true
         },
@@ -186,7 +186,7 @@
             "expected": "partially_supported",
             "actual": "partially_supported",
             "coverage": 0.5,
-            "evidence_score": 58.37,
+            "evidence_score": 73.65,
             "grounded": false,
             "correct": true
         },
@@ -196,7 +196,7 @@
             "expected": "partially_supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 73.27,
+            "evidence_score": 71.55,
             "grounded": true,
             "correct": false
         },
@@ -206,7 +206,7 @@
             "expected": "partially_supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 81.03,
+            "evidence_score": 80.01,
             "grounded": true,
             "correct": false
         },
@@ -216,7 +216,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 62.64,
+            "evidence_score": 70.31,
             "grounded": true,
             "correct": true
         },
@@ -226,7 +226,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 30.19,
+            "evidence_score": 49.04,
             "grounded": true,
             "correct": true
         },
@@ -236,7 +236,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 59.42,
+            "evidence_score": 69.5,
             "grounded": true,
             "correct": true
         },
@@ -246,7 +246,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 39.35,
+            "evidence_score": 47.66,
             "grounded": true,
             "correct": true
         },
@@ -256,7 +256,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 27.25,
+            "evidence_score": 52.55,
             "grounded": true,
             "correct": true
         },
@@ -266,7 +266,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 43.67,
+            "evidence_score": 58.6,
             "grounded": true,
             "correct": true
         },
@@ -274,11 +274,11 @@
             "id": "OS07",
             "question": "What programming languages are required for a software engineering job at a private tech company?",
             "expected": "unsupported",
-            "actual": "unsupported",
-            "coverage": 0.0,
-            "evidence_score": 48.82,
-            "grounded": true,
-            "correct": true
+            "actual": "partially_supported",
+            "coverage": 0.5,
+            "evidence_score": 51.37,
+            "grounded": false,
+            "correct": false
         },
         {
             "id": "OS08",
@@ -286,7 +286,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 63.72,
+            "evidence_score": 67.83,
             "grounded": true,
             "correct": true
         },
@@ -296,7 +296,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 37.11,
+            "evidence_score": 50.57,
             "grounded": true,
             "correct": true
         },
@@ -306,7 +306,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 41.06,
+            "evidence_score": 55.63,
             "grounded": true,
             "correct": true
         },
@@ -316,7 +316,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 65.87,
+            "evidence_score": 73.12,
             "grounded": true,
             "correct": true
         },
@@ -326,7 +326,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 68.74,
+            "evidence_score": 70.56,
             "grounded": true,
             "correct": true
         },
@@ -336,7 +336,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 65.69,
+            "evidence_score": 65.46,
             "grounded": true,
             "correct": true
         },
@@ -346,7 +346,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 68.98,
+            "evidence_score": 71.39,
             "grounded": true,
             "correct": true
         },
@@ -356,7 +356,7 @@
             "expected": "unsupported",
             "actual": "unsupported",
             "coverage": 0.0,
-            "evidence_score": 68.9,
+            "evidence_score": 57.59,
             "grounded": true,
             "correct": true
         },
@@ -366,7 +366,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 74.63,
+            "evidence_score": 79.1,
             "grounded": true,
             "correct": true
         },
@@ -374,11 +374,11 @@
             "id": "RS02",
             "question": "What happens if a jury member fails to meet the deadlines required for their jury duties?",
             "expected": "supported",
-            "actual": "supported",
-            "coverage": 1.0,
-            "evidence_score": 69.09,
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 61.31,
             "grounded": true,
-            "correct": true
+            "correct": false
         },
         {
             "id": "RS03",
@@ -386,7 +386,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 78.03,
+            "evidence_score": 78.02,
             "grounded": true,
             "correct": true
         },
@@ -396,7 +396,7 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 70.76,
+            "evidence_score": 80.14,
             "grounded": true,
             "correct": true
         },
@@ -406,8 +406,8 @@
             "expected": "supported",
             "actual": "supported",
             "coverage": 1.0,
-            "evidence_score": 75.79,
-            "grounded": true,
+            "evidence_score": 66.05,
+            "grounded": false,
             "correct": true
         }
     ]

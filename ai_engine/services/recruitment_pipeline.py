@@ -2,7 +2,8 @@ import json
 
 from concurrent.futures import ThreadPoolExecutor
 from time import perf_counter
-
+from .language_detection import detect_language
+from .translation import translate_tetum_to_english
 from django.utils import timezone
 
 from .llm_candidate_profile import analyze_cv, DEFAULT_PROFILE
@@ -171,14 +172,37 @@ def recruitment_pipeline(application):
         rag_context = application.job.ai_rag_context or {}
 
         # =====================================
+        # STEP 0 (TASK D, 2026-09-30)
+        # Language Detection + Conditional Tetum Translation
+        # =====================================
+        # Runs BEFORE the candidate profile is built -- translating
+        # after profile extraction would mean the profile itself was
+        # already built from text the pipeline doesn't understand
+        # well. `cv_text` (original, saved on the Candidate at upload
+        # time) is NEVER overwritten here or anywhere below --
+        # `processing_text` is what every downstream step actually
+        # uses. No LLM call at all for English/Portuguese/Indonesian
+        # documents (translate_tetum_to_english only runs when
+        # tetum_significant is True).
+        # =====================================
+
+        language_result = detect_language(cv_text)
+
+        if language_result["tetum_significant"]:
+            translation_result = translate_tetum_to_english(cv_text)
+            processing_text = translation_result["translated_text"]
+        else:
+            translation_result = None
+            processing_text = cv_text
+
+        # =====================================
         # STEP 1
         # Candidate Intelligence Profile
         # =====================================
 
         profile = analyze_cv(
-            cv_text
+            processing_text
         )
-
         # Bug fix (2026-09-25): analyze_cv() can legitimately exhaust
         # MAX_ATTEMPTS and return a plain {} when the LLM's JSON-mode
         # decoding stalls (see llm_candidate_profile.py comment) -- this
@@ -382,6 +406,16 @@ def recruitment_pipeline(application):
             **(
                 {"candidate_legal_evidence": candidate_legal_evidence}
                 if candidate_legal_evidence else {}
+            ),
+            "language_detection": language_result,
+            **(
+                {
+                    "translation": {
+                        "translated": translation_result["success"],
+                        "error": translation_result["error"],
+                    }
+                }
+                if translation_result else {}
             )
         }
 

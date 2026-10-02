@@ -73,7 +73,7 @@ class RegistrationTests(TestCase):
         })
 
         resp = self.client.post(reverse("login"), {
-            "username": "unverified1",
+            "email": "unverified1@example.com",
             "password": "S3cure!Passw0rd",
         })
 
@@ -109,7 +109,7 @@ class RegistrationTests(TestCase):
         self.assertIsNotNone(user.email_verified_at)
 
         login_resp = self.client.post(reverse("login"), {
-            "username": "verifyme",
+            "email": "verifyme@example.com",
             "password": "S3cure!Passw0rd",
         })
 
@@ -165,7 +165,7 @@ class RoleBasedAccessTests(TestCase):
 
     def test_candidate_forbidden_from_create_job(self):
 
-        self.client.login(username="cand1", password="pass12345")
+        self.client.login(email="cand1@x.com", password="pass12345")
 
         resp = self.client.get(reverse("create_job"))
 
@@ -173,7 +173,7 @@ class RoleBasedAccessTests(TestCase):
 
     def test_candidate_forbidden_from_ranking(self):
 
-        self.client.login(username="cand1", password="pass12345")
+        self.client.login(email="cand1@x.com", password="pass12345")
 
         for url_name in ("candidate_ranking", "ranking_jobs"):
             resp = self.client.get(reverse(url_name))
@@ -181,7 +181,7 @@ class RoleBasedAccessTests(TestCase):
 
     def test_hr_can_access_create_job(self):
 
-        self.client.login(username="hr1", password="pass12345")
+        self.client.login(email="hr1@x.com", password="pass12345")
 
         resp = self.client.get(reverse("create_job"))
 
@@ -189,7 +189,7 @@ class RoleBasedAccessTests(TestCase):
 
     def test_hr_can_access_ranking(self):
 
-        self.client.login(username="hr1", password="pass12345")
+        self.client.login(email="hr1@x.com", password="pass12345")
 
         resp = self.client.get(reverse("candidate_ranking"))
 

@@ -125,6 +125,23 @@ def _normalize_profile_result(result, attempt):
     return result
 
 
+PROFILE_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "education": {"type": "string"},
+        "skills": {"type": "array", "items": {"type": "string"}},
+        "languages": {"type": "array", "items": {"type": "string"}},
+        "certifications": {"type": "array", "items": {"type": "string"}},
+        "years_experience": {"type": "integer"},
+        "professional_summary": {"type": "string"}
+    },
+    "required": [
+        "education", "skills", "languages", "certifications",
+        "years_experience", "professional_summary"
+    ]
+}
+
+
 def analyze_cv(cv_text, num_predict=None):
     """
     num_predict (Phase 23, controlled experiment ONLY): forwarded
@@ -171,10 +188,20 @@ CV
 
         try:
 
-            result = generate_json(
-                prompt=prompt,
-                num_predict=num_predict
-            )
+            # Attempt 1 unchanged. After an empty "{}" (known gemma3:4b
+            # early-stop), attempts 2-3 enforce the schema -- same fix
+            # already used by llm_job_parser.py.
+            if attempt == 1:
+                result = generate_json(
+                    prompt=prompt,
+                    num_predict=num_predict
+                )
+            else:
+                result = generate_json(
+                    prompt=prompt,
+                    num_predict=num_predict,
+                    json_schema=PROFILE_JSON_SCHEMA
+                )
 
             result = _normalize_profile_result(result, attempt)
 

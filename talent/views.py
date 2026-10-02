@@ -64,6 +64,27 @@ def _has_recruitment_permission(user):
     ).exists()
 
 
+# Roles allowed to record the FINAL Human Review decision
+# (Approve / Reject). Same two roles that already have user-management
+# rights (see accounts/management/commands/seed_roles.py). Django
+# superusers are also allowed. HR Officer / Reviewer / Interviewer can
+# still view the application, but cannot record the final decision.
+FINAL_DECISION_ROLES = ("Super Admin", "Administrator")
+
+
+def _can_make_final_decision(user):
+
+    if not getattr(user, "is_authenticated", False):
+        return False
+
+    if user.is_superuser:
+        return True
+
+    role = getattr(user, "role", None)
+
+    return bool(role and role.name in FINAL_DECISION_ROLES)
+
+
 @login_required
 def candidate_detail(request, application_id):
 
@@ -93,9 +114,10 @@ def candidate_detail(request, application_id):
         # their own application (is_owner) must never be able to
         # approve/reject their own screening, even though they can
         # view the same page.
-        if not is_staff:
+        # Restricted further to administrators only (final decision).
+        if not (is_staff and _can_make_final_decision(request.user)):
             return HttpResponseForbidden(
-                "You do not have permission to submit a review decision."
+                "Only an administrator can record the final review decision."
             )
 
         decision = request.POST.get("decision")
@@ -161,6 +183,7 @@ def candidate_detail(request, application_id):
 
     context = {
         "application": application,
+        "can_decide": is_staff and _can_make_final_decision(request.user),
     }
 
     return render(

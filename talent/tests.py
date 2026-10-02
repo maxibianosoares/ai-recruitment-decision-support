@@ -85,7 +85,7 @@ class CandidateAccessTests(TestCase):
             candidate=candidate_profile, job=self.job
         )
 
-        self.client.login(username="candA", password="pass12345")
+        self.client.login(email="a@x.com", password="pass12345")
 
         resp = self.client.get(
             reverse("candidate_detail", kwargs={"application_id": application.id})
@@ -104,7 +104,7 @@ class CandidateAccessTests(TestCase):
         )
 
         # Candidate B tries to view Candidate A's application
-        self.client.login(username="candB", password="pass12345")
+        self.client.login(email="b@x.com", password="pass12345")
 
         resp = self.client.get(
             reverse("candidate_detail", kwargs={"application_id": application.id})
@@ -122,7 +122,7 @@ class CandidateAccessTests(TestCase):
             candidate=candidate_profile, job=self.job
         )
 
-        self.client.login(username="candA", password="pass12345")
+        self.client.login(email="a@x.com", password="pass12345")
 
         resp = self.client.post(
             reverse("candidate_detail", kwargs={"application_id": application.id}),
@@ -146,7 +146,7 @@ class CandidateAccessTests(TestCase):
             role=self.hr_role, is_verified=True
         )
 
-        self.client.login(username="hr_view", password="pass12345")
+        self.client.login(email="hrv@x.com", password="pass12345")
 
         resp = self.client.get(
             reverse("candidate_detail", kwargs={"application_id": application.id})
@@ -184,7 +184,7 @@ class SelfApplicationTests(TestCase):
 
     def test_candidate_can_self_apply_and_owns_result(self):
 
-        self.client.login(username="applicant1", password="pass12345")
+        self.client.login(email="applicant1@x.com", password="pass12345")
 
         cv = SimpleUploadedFile(
             "cv.pdf", _native_pdf_bytes(), content_type="application/pdf"
@@ -213,7 +213,7 @@ class SelfApplicationTests(TestCase):
 
         Application.objects.create(candidate=candidate, job=self.job)
 
-        self.client.login(username="applicant1", password="pass12345")
+        self.client.login(email="applicant1@x.com", password="pass12345")
 
         resp = self.client.get(
             reverse("apply_job", kwargs={"job_id": self.job.id}), follow=True

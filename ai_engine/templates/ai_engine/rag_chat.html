@@ -10,12 +10,17 @@
 .header p{color:var(--muted);margin-bottom:0}
 .card{background:#fff;border:1px solid #e7eaf0;border-radius:16px;box-shadow:0 4px 18px rgba(16,24,40,.05);padding:24px;margin-bottom:20px}
 .question-label{font-weight:600;color:var(--ink);margin-bottom:.5rem;display:block}
-.input-row{display:flex;gap:10px}
-.input-row input{flex:1;border:1px solid #d0d5dd;border-radius:10px;padding:.65rem .9rem}
+.input-row{display:flex;gap:10px;flex-wrap:wrap}
+.input-row input{flex:1 1 200px;min-width:0;border:1px solid #d0d5dd;border-radius:10px;padding:.65rem .9rem}
 .input-row input:focus{outline:none;border-color:#e58a99;box-shadow:0 0 0 .2rem rgba(200,16,46,.10)}
-.input-row button{background:var(--tl-red);border:1px solid var(--tl-red);color:#fff;border-radius:10px;padding:.65rem 1.25rem;font-weight:600}
+.input-row button{flex:0 0 auto;white-space:nowrap;background:var(--tl-red);border:1px solid var(--tl-red);color:#fff;border-radius:10px;padding:.65rem 1.25rem;font-weight:600}
 .input-row button:hover{background:#a90d26}
 .input-row button:disabled{opacity:.6;cursor:not-allowed}
+@media (max-width:480px){
+    .input-row{flex-direction:column}
+    .input-row input{flex:0 0 auto}
+    .input-row button{width:100%}
+}
 #loading{display:flex;align-items:center;gap:10px;color:var(--muted);padding:14px 0}
 .spinner{width:18px;height:18px;border:3px solid #e7eaf0;border-top-color:var(--tl-red);border-radius:50%;display:inline-block;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
