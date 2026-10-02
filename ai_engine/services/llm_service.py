@@ -15,9 +15,21 @@ def generate_json(
     prompt,
     default=None,
     num_predict=None,
-    json_schema=None
+    json_schema=None,
+    raise_on_error=False
 ):
     """
+    raise_on_error (Online Gemma reliability fix, 2026-10-02): default
+    False preserves the EXACT existing behavior for every current
+    caller (translation.py, llm_job_parser.py, llm_reasoning.py,
+    ollama_llm.py) -- any failure is swallowed and `default or {}` is
+    returned, same as before this parameter existed. Only a caller
+    that explicitly passes True (currently just
+    llm_candidate_profile.py's analyze_cv) gets the underlying
+    exception re-raised after the same "LLM Error:" print, so it can
+    inspect e.g. an OnlineGemmaError's .is_transient/.status_code to
+    make an informed retry decision instead of retrying blindly.
+
     num_predict (Phase 23, controlled experiment ONLY): optional cap on
     the number of tokens Ollama generates for this call. Default is
     None, which means the payload sent to Ollama is BYTE-IDENTICAL to
@@ -131,5 +143,8 @@ def generate_json(
             "LLM Error:",
             str(e)
         )
+
+        if raise_on_error:
+            raise
 
         return default or {}

@@ -190,6 +190,31 @@ ONLINE_GEMMA_TIMEOUT_SECONDS = 45
 # finish inside gunicorn's limit, and gives the user a clean error
 # instead of a SIGKILLed connection.
 
+# Online Gemma reliability fix (2026-10-02): HTTP statuses worth
+# retrying -- server-side/rate-limit problems that may well succeed
+# on a second try. Everything else (400 bad request, 401/403 auth,
+# 404 unknown model, etc.) is PERMANENT: retrying the exact same
+# request cannot change the outcome, so callers should fail fast
+# instead of burning their retry budget on it.
+_ONLINE_GEMMA_TRANSIENT_STATUSES = {408, 429, 500, 502, 503, 504}
+
+
+class OnlineGemmaError(RuntimeError):
+    """
+    Raised by call_online_gemma() on any failure. Carries enough
+    structured info for a caller to decide whether retrying is worth
+    it, instead of every caller re-parsing the same exception string.
+
+    status_code is None when no HTTP response was ever received at
+    all (connection error / timeout) -- treated as transient, same
+    class of "the server might answer next time" failure as a 503.
+    """
+
+    def __init__(self, message, status_code=None, is_transient=True):
+        super().__init__(message)
+        self.status_code = status_code
+        self.is_transient = is_transient
+
 
 def call_online_gemma(prompt, want_json=True):
     """
@@ -247,7 +272,17 @@ def call_online_gemma(prompt, want_json=True):
         "generationConfig": generation_config
     }
 
-    print(f"[DEBUG-KEY-CHECK] provider=online_gemma model={ONLINE_GEMMA_MODEL} key_len={len(ONLINE_GEMMA_API_KEY)} key_prefix={ONLINE_GEMMA_API_KEY[:6]!r} key_suffix={ONLINE_GEMMA_API_KEY[-4:]!r}")
+    # STEP 2 fix (2026-10-02): no longer prints any slice of the key
+    # itself (the old key_prefix/key_suffix fields leaked 10 of the
+    # key's 53 characters into logs) -- key_present + key_length is
+    # enough to debug "did Railway's env var actually reach the app"
+    # without exposing any real key material.
+    print(
+        f"[DEBUG-KEY-CHECK] provider=online_gemma "
+        f"model={ONLINE_GEMMA_MODEL} "
+        f"key_present={bool(ONLINE_GEMMA_API_KEY)} "
+        f"key_length={len(ONLINE_GEMMA_API_KEY)}"
+    )
 
     try:
 
@@ -264,13 +299,33 @@ def call_online_gemma(prompt, want_json=True):
         response.raise_for_status()
 
     except requests.exceptions.RequestException as e:
-        # requests' own exception message includes the full request
-        # URL, which (since the API key is passed as a query param)
-        # would otherwise leak the key in plaintext into any log or
-        # print() of this exception. Re-raise with that scrubbed.
-        status = getattr(e.response, "status_code", "unknown")
-        raise RuntimeError(
-            f"Online Gemma request failed (HTTP {status})."
+        # STEP 2 fix (2026-10-02): the old code discarded the response
+        # BODY and kept only the status code, so every failure printed
+        # as an identical "HTTP 500" regardless of the real reason
+        # (quota exceeded, safety block, invalid argument, genuine
+        # server error, etc.). The key is sent as a header, never in
+        # the request/response body, so including the body here never
+        # risks leaking it. Truncated to keep logs readable.
+        status = getattr(e.response, "status_code", None)
+
+        body_snippet = ""
+        if e.response is not None:
+            try:
+                body_snippet = e.response.text[:500]
+            except Exception:
+                body_snippet = "<could not read response body>"
+
+        is_transient = (
+            status is None
+            or status in _ONLINE_GEMMA_TRANSIENT_STATUSES
+        )
+
+        raise OnlineGemmaError(
+            f"Online Gemma request failed "
+            f"(HTTP {status if status is not None else 'no-response'}): "
+            f"{body_snippet}",
+            status_code=status,
+            is_transient=is_transient
         ) from None
 
     data = response.json()
@@ -301,6 +356,10 @@ def call_online_gemma(prompt, want_json=True):
 
         return text
     except (KeyError, IndexError) as e:
-        raise RuntimeError(
+        # Malformed/unexpected shape rather than an HTTP failure --
+        # no status code to classify, so treated as transient
+        # (default): worth one retry in case this was a one-off odd
+        # response rather than a persistent problem.
+        raise OnlineGemmaError(
             f"Unexpected online Gemma response shape: {data}"
         ) from e

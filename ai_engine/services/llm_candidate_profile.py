@@ -1,5 +1,7 @@
 import json
 import logging
+import random
+import time
 
 from .llm_service import generate_json
 
@@ -80,6 +82,22 @@ DEFAULT_PROFILE = {
 # contract (still returns an empty dict, unchanged, if every attempt
 # is empty).
 MAX_ATTEMPTS = 3
+
+# Online Gemma reliability fix (2026-10-02): short, bounded backoff
+# between attempts -- long enough to give a transient server-side
+# problem (HTTP 500/502/503/429, or a timeout) a real chance to clear
+# before hammering it again, short enough that 2 backoff waits can
+# never come close to threatening gunicorn's 120s worker timeout (see
+# Procfile). Index 0 = wait before attempt 2, index 1 = wait before
+# attempt 3. A small random jitter is added so concurrent requests
+# don't all retry in lockstep.
+RETRY_BACKOFF_SECONDS = [1.0, 2.0]
+
+
+def _wait_before_retry(attempt_just_finished):
+    if attempt_just_finished - 1 < len(RETRY_BACKOFF_SECONDS):
+        base = RETRY_BACKOFF_SECONDS[attempt_just_finished - 1]
+        time.sleep(base + random.uniform(0, 0.5))
 
 
 def _normalize_profile_result(result, attempt):
@@ -184,6 +202,8 @@ CV
 
     last_result = {}
 
+    pipeline_start = time.perf_counter()
+
     for attempt in range(1, MAX_ATTEMPTS + 1):
 
         try:
@@ -191,16 +211,25 @@ CV
             # Attempt 1 unchanged. After an empty "{}" (known gemma3:4b
             # early-stop), attempts 2-3 enforce the schema -- same fix
             # already used by llm_job_parser.py.
+            # raise_on_error=True (Online Gemma reliability fix,
+            # 2026-10-02): lets the except-block below actually see
+            # WHY a call failed (e.g. OnlineGemmaError.is_transient)
+            # instead of generate_json() silently swallowing it into
+            # an empty {} -- see llm_service.py's generate_json()
+            # docstring. Does not change Ollama's local behavior: a
+            # successful Ollama call never raises in the first place.
             if attempt == 1:
                 result = generate_json(
                     prompt=prompt,
-                    num_predict=num_predict
+                    num_predict=num_predict,
+                    raise_on_error=True
                 )
             else:
                 result = generate_json(
                     prompt=prompt,
                     num_predict=num_predict,
-                    json_schema=PROFILE_JSON_SCHEMA
+                    json_schema=PROFILE_JSON_SCHEMA,
+                    raise_on_error=True
                 )
 
             result = _normalize_profile_result(result, attempt)
@@ -210,9 +239,21 @@ CV
             print("\n============================\n")
 
             if isinstance(result, dict) and result:
+                elapsed = time.perf_counter() - pipeline_start
+                print(
+                    f"[CANDIDATE-PROFILE-SUMMARY] attempts_used={attempt}/"
+                    f"{MAX_ATTEMPTS} result=success elapsed={elapsed:.2f}s"
+                )
                 return result
 
+            # A structurally-empty/invalid result (e.g. the known
+            # gemma3:4b "{}" early-stop) without an exception -- still
+            # worth a backoff pause before the next attempt, same as
+            # the exception path below, instead of retrying instantly.
             last_result = result
+
+            if attempt < MAX_ATTEMPTS:
+                _wait_before_retry(attempt)
 
         except Exception as e:
 
@@ -222,6 +263,37 @@ CV
             profile["error"] = str(e)
 
             last_result = profile
+
+            # Online Gemma reliability fix (2026-10-02): only
+            # OnlineGemmaError carries .is_transient -- anything else
+            # (e.g. a plain Ollama connection error) defaults to True
+            # via getattr, keeping today's "always retry" behavior for
+            # local dev unchanged.
+            is_transient = getattr(e, "is_transient", True)
+            status_code = getattr(e, "status_code", None)
+
+            if not is_transient:
+                # Permanent failure (bad API key, unknown model, bad
+                # request, etc.) -- the exact same request will fail
+                # the exact same way again. Stop now instead of
+                # burning the remaining attempts and the candidate's
+                # wait time on a retry that cannot succeed.
+                print(
+                    f"Candidate Profile Error: permanent failure "
+                    f"(status={status_code}), not retrying further "
+                    f"(stopped after attempt {attempt}/{MAX_ATTEMPTS})."
+                )
+                break
+
+            if attempt < MAX_ATTEMPTS:
+                _wait_before_retry(attempt)
+
+    elapsed = time.perf_counter() - pipeline_start
+    print(
+        f"[CANDIDATE-PROFILE-SUMMARY] attempts_used={attempt}/"
+        f"{MAX_ATTEMPTS} result=failed elapsed={elapsed:.2f}s "
+        f"error={last_result.get('error')}"
+    )
 
     return last_result
 
