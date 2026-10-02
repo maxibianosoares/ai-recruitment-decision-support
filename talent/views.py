@@ -265,6 +265,20 @@ def apply_job(request, job_id):
     job = get_object_or_404(Job, id=job_id)
 
     existing_candidate = getattr(request.user, "candidate_profile", None)
+        # Block re-applying to the same job -- this guard was accidentally
+    # dropped from a previous merge (views.py lost it while the Tetum
+    # job-description work was combined in), leaving nothing but a raw
+    # DB IntegrityError protecting against duplicate Application rows.
+    if existing_candidate is not None and Application.objects.filter(
+        candidate=existing_candidate, job=job
+    ).exists():
+
+        messages.warning(
+            request,
+            "You have already applied to this position."
+        )
+
+        return redirect("job_detail", job_id=job.id)
 
     if existing_candidate is not None and existing_candidate.full_name:
         applicant_full_name = existing_candidate.full_name
