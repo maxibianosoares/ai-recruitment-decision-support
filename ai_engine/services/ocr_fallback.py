@@ -111,6 +111,16 @@ def _assess_quality(text):
     return OCRQuality.OK
 
 
+# TASK G (2026-10-03): exported alias so the new document_extraction
+# router can reuse the EXACT same quality heuristic for Azure Document
+# Intelligence results, instead of duplicating/re-implementing it.
+# Both extraction providers must agree on what counts as
+# OK/LOW/FAILED, since talent/utils.py's downstream behavior (proceed
+# with a warning vs. reject outright) is keyed on that enum, not on
+# which provider produced the text.
+assess_text_quality = _assess_quality
+
+
 def extract_text_via_ocr(pdf_path):
     """
     Renders every page of the PDF as an image and runs Tesseract OCR
