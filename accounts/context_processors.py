@@ -9,7 +9,14 @@ access control is still enforced server-side by @permission_required
 on each view (see accounts/decorators.py, talent/views.py); a link
 being hidden here is never the only thing standing between a user
 and a protected page.
+
+TASK H (2026-10-03): also injects PILOT_MODE (settings.py, default
+False) so templates/base.html can show the CSC pilot banner. Purely
+presentational, same as everything else in this file -- no AI
+pipeline, scoring, or access-control behavior is affected by this.
 """
+
+from django.conf import settings
 
 
 def _has_permission(user, code):
@@ -36,4 +43,5 @@ def permissions(request):
         "can_manage_users": _has_permission(
             user, "user_view"
         ),
+        "PILOT_MODE": settings.PILOT_MODE,
     }

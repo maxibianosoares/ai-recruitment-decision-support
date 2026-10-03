@@ -32,6 +32,17 @@ DEBUG = os.environ.get("DEBUG", "True") == "True"
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/accounts/dashboard/'
 
+# TASK H (2026-10-03): CSC pilot/demo labeling only -- purely
+# presentational (see accounts/context_processors.py + templates/
+# base.html). Does NOT change any AI pipeline, scoring, RAG, OCR,
+# auth, or database behavior. Default False, so production (Railway)
+# renders byte-identical to before unless this env var is explicitly
+# set for a pilot session. When True, every page shows a banner
+# clarifying the AI output is decision support, not a final
+# recruitment decision, and that the session is a research/pilot
+# demonstration -- required positioning for the CSC pilot per Task H.
+PILOT_MODE = os.environ.get("PILOT_MODE", "False") == "True"
+
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 1200  # 20 minutes
@@ -232,3 +243,4 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 # console/SMTP backend above and this key is simply unused.
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
