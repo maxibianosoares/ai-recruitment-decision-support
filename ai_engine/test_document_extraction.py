@@ -46,29 +46,34 @@ from talent.utils import extract_text_from_pdf, CVExtractionError
 # ---------------------------------------------------------------------
 
 def _make_digital_pdf(path, lines):
-    """A real digitally-generated PDF -- has an actual text layer."""
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import letter
+    """
+    A real digitally-generated PDF -- has an actual text layer.
 
-    c = canvas.Canvas(path, pagesize=letter)
-    y = 750
+    Uses fpdf2, which is ALREADY a pinned dependency in requirements.txt
+    (used elsewhere in the project) -- not reportlab, which would have
+    been an extra, test-only dependency never declared anywhere.
+    """
+    from fpdf import FPDF
+
+    pdf = FPDF(unit="pt", format="letter")
+    pdf.add_page()
+    pdf.set_font("helvetica", size=12)
     for line in lines:
-        c.drawString(72, y, line)
-        y -= 20
-    c.save()
+        pdf.cell(text=line, new_x="LMARGIN", new_y="NEXT")
+    pdf.output(path)
 
 
 def _make_scanned_pdf(path, pages_lines):
     """
     An image-only PDF (no text layer at all) -- simulates a scanned
     document. One page per item in pages_lines (each a list of text
-    lines rendered into that page's image).
+    lines rendered into that page's image). Built with fpdf2 + Pillow
+    (both already pinned dependencies) -- no reportlab.
     """
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import letter
+    from fpdf import FPDF
     from PIL import Image, ImageDraw
 
-    c = canvas.Canvas(path, pagesize=letter)
+    pdf = FPDF(unit="pt", format="letter")
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         for page_num, lines in enumerate(pages_lines):
@@ -82,10 +87,10 @@ def _make_scanned_pdf(path, pages_lines):
             img_path = os.path.join(tmp_dir, f"page_{page_num}.png")
             img.save(img_path)
 
-            c.drawImage(img_path, 0, 0, width=letter[0], height=letter[1])
-            c.showPage()
+            pdf.add_page()
+            pdf.image(img_path, x=0, y=0, w=612, h=792)
 
-        c.save()
+        pdf.output(path)
 
 
 def _make_empty_pdf(path):
