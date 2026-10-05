@@ -1,3 +1,4 @@
+from time import perf_counter
 from django.shortcuts import render
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -388,7 +389,17 @@ def apply_job(request, job_id):
 
             pdf_path = candidate.cv_file.path
 
+            # APPLY JOB OPTIMIZATION (2026-10-04): timing only, same
+            # "[APPLY-JOB-TIMING]" line format as
+            # recruitment_pipeline.py's end-of-run summary.
+            _extract_start = perf_counter()
+
             candidate.extracted_text = extract_text_from_pdf(pdf_path)
+
+            print(
+                "[APPLY-JOB-TIMING] "
+                f"text_extraction={perf_counter() - _extract_start:.2f}s"
+            )
 
             candidate.save()
 

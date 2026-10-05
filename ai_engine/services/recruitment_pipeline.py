@@ -1,10 +1,15 @@
+import hashlib
 import json
+import logging
 
 from concurrent.futures import ThreadPoolExecutor
 from time import perf_counter
+from django.core.cache import cache
 from .language_detection import detect_language
 from .translation import translate_tetum_to_english
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 from .llm_candidate_profile import analyze_cv, DEFAULT_PROFILE
 from .llm_reasoning import generate_recruitment_assessment, split_assessment
@@ -13,6 +18,33 @@ from .recruitment_rules import evaluate_recruitment_rules
 from .model_config import MODEL_NAME as LLM_MODEL_NAME
 from .model_config import NEW_CANDIDATE_RAG
 from .candidate_legal_rag import get_candidate_legal_evidence
+
+# APPLY JOB OPTIMIZATION PHASE (2026-10-04) -- candidate-profile cache.
+#
+# WHY: profiling showed analyze_cv() (STEP 1, one full LLM call with
+# up to 3 attempts) costs ~30s+ on a real run. That cost is paid
+# again, unchanged, if the SAME candidate applies to a DIFFERENT job
+# with the SAME CV text -- the profile (education/skills/experience
+# extracted from the CV) is a pure function of `processing_text` and
+# does NOT depend on which job is being applied to. This mirrors the
+# exact SHA-256-keyed caching pattern already used and documented for
+# document extraction (see ai_engine/services/document_extraction/
+# router.py) -- same rationale, same mechanism, no new dependency.
+#
+# SAFETY: a cache hit returns the EXACT SAME dict a fresh analyze_cv()
+# call would have returned for byte-identical input text -- this is
+# not an approximation or a shortcut that changes what gets computed,
+# only *when* it gets (re)computed. Only a profile that already PASSED
+# the existing validity guard below is ever cached, so a transient LLM
+# failure can never get "stuck" in the cache. The fused-reasoning call
+# (STEP 3, the actual per-job recruitment decision) is NEVER cached.
+CANDIDATE_PROFILE_CACHE_KEY_PREFIX = "candidate_profile:v1:"
+CANDIDATE_PROFILE_CACHE_TTL_SECONDS = 60 * 60 * 24  # 24h
+
+
+def _candidate_profile_cache_key(processing_text):
+    digest = hashlib.sha256(processing_text.encode("utf-8")).hexdigest()
+    return f"{CANDIDATE_PROFILE_CACHE_KEY_PREFIX}{digest}"
 
 
 LLM_PROVIDER_NAME = "Ollama (local)"
@@ -195,14 +227,34 @@ def recruitment_pipeline(application):
             translation_result = None
             processing_text = cv_text
 
+        t_lang = perf_counter()
+
         # =====================================
         # STEP 1
         # Candidate Intelligence Profile
         # =====================================
 
-        profile = analyze_cv(
-            processing_text
-        )
+        profile_cache_key = _candidate_profile_cache_key(processing_text)
+
+        cached_profile = cache.get(profile_cache_key)
+
+        profile_cache_hit = cached_profile is not None
+
+        if profile_cache_hit:
+
+            profile = cached_profile
+
+            logger.info(
+                "[APPLY-JOB-TIMING] candidate profile cache hit "
+                "(key=%s...) -- skipping analyze_cv() LLM call.",
+                profile_cache_key[-12:]
+            )
+
+        else:
+
+            profile = analyze_cv(
+                processing_text
+            )
         # Bug fix (2026-09-25): analyze_cv() can legitimately exhaust
         # MAX_ATTEMPTS and return a plain {} when the LLM's JSON-mode
         # decoding stalls (see llm_candidate_profile.py comment) -- this
@@ -252,6 +304,20 @@ def recruitment_pipeline(application):
                 "assessment."
             )
 
+        if not profile_cache_hit:
+            # Only a profile that already passed the validity guard
+            # above is ever cached -- a technical-failure profile is
+            # never cached, so it can never get "stuck"; the next
+            # application for this exact CV text simply retries
+            # analyze_cv() for real.
+            cache.set(
+                profile_cache_key,
+                profile,
+                timeout=CANDIDATE_PROFILE_CACHE_TTL_SECONDS
+            )
+
+        t_profile = perf_counter()
+
         # =====================================
         # STEP 2
         # Deterministic Parallel Analysis
@@ -278,6 +344,7 @@ def recruitment_pipeline(application):
             rule_result = future_rule.result()
 
             gap_result = future_gap.result()
+            t_rule_skill = perf_counter()
 
         # =====================================
         # STEP 2.5 (Phase 21, research, gated by NEW_CANDIDATE_RAG)
@@ -321,6 +388,8 @@ def recruitment_pipeline(application):
 
                 candidate_legal_evidence = {}
 
+        t_legal_rag = perf_counter()
+
         # =====================================
         # STEP 3
         # Fused Semantic Matching + Explainable AI
@@ -338,6 +407,8 @@ def recruitment_pipeline(application):
             rag_context=rag_context,
             candidate_legal_evidence=candidate_legal_evidence
         )
+
+        t_fused = perf_counter()
 
         semantic_result, report = split_assessment(assessment)
 
@@ -456,6 +527,24 @@ def recruitment_pipeline(application):
         application.ai_status = "SUCCESS"
 
         application.save()
+
+        t_save = perf_counter()
+
+        # APPLY JOB OPTIMIZATION (2026-10-04): per-stage timing
+        # breakdown -- additive observability only, changes no
+        # behavior/decision/score.
+        print(
+            "[APPLY-JOB-TIMING] "
+            f"lang_detect_translate={t_lang - start:.2f}s "
+            f"candidate_profile={t_profile - t_lang:.2f}s"
+            f"(cache_hit={profile_cache_hit}) "
+            f"rule_engine_skill_match={t_rule_skill - t_profile:.2f}s "
+            f"candidate_legal_rag={t_legal_rag - t_rule_skill:.2f}s"
+            f"(enabled={NEW_CANDIDATE_RAG}) "
+            f"fused_reasoning={t_fused - t_legal_rag:.2f}s "
+            f"db_save={t_save - t_fused:.2f}s "
+            f"TOTAL={t_save - start:.2f}s"
+        )
 
         return application
 
