@@ -1,4 +1,7 @@
 from time import perf_counter
+
+from django.conf import settings
+from django.core.mail import send_mail
 from django.shortcuts import render
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -27,6 +30,7 @@ from .models import (
     HumanDecision
 )
 from .utils import extract_text_from_pdf, CVExtractionError
+from .document_quality import check_document_quality
 
 MAX_CV_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
 
@@ -64,14 +68,12 @@ def _has_recruitment_permission(user):
         code="recruitment_manage"
     ).exists()
 
-
 # Roles allowed to record the FINAL Human Review decision
 # (Approve / Reject). Same two roles that already have user-management
 # rights (see accounts/management/commands/seed_roles.py). Django
 # superusers are also allowed. HR Officer / Reviewer / Interviewer can
 # still view the application, but cannot record the final decision.
 FINAL_DECISION_ROLES = ("Super Admin", "Administrator")
-
 
 def _can_make_final_decision(user):
 
@@ -85,6 +87,81 @@ def _can_make_final_decision(user):
 
     return bool(role and role.name in FINAL_DECISION_ROLES)
 
+def _send_candidate_outcome_email(application, agreed_with_ai=True):
+    """
+    FINAL FINISHING SESSION (2026-10-04, Section M). Sends via
+    whichever EMAIL_BACKEND is configured (Brevo HTTPS API in
+    production -- see accounts/email_backends.py; Django's console/
+    locmem backend locally if BREVO_API_KEY is unset) -- same call
+    shape accounts/views_auth.py already uses, no new email system.
+
+    Candidate-safe by construction: only the job title, the final
+    outcome (accepted/rejected), and the candidate-facing feedback
+    text already shown on their own Candidate Detail page
+    (application.ai_feedback) are included. Never the recruiter's own
+    reason (HumanDecision.reason is internal-only), never RAG/legal
+    evidence, never any other candidate's data.
+
+    FEEDBACK/OUTCOME CONSISTENCY FIX (2026-10-05): application.ai_feedback
+    is always the AI's OWN recommendation text (e.g. "Do not proceed
+    with this candidate..."), written before any human review ever
+    happens. When the administrator's final decision AGREES with the
+    AI, that text is still an accurate explanation of the outcome, so
+    it is included as before. When the administrator OVERRIDES the AI
+    (agreed_with_ai=False -- e.g. AI said "Not Recommended" but the
+    final decision is "accepted"), showing that same AI text next to
+    an opposite outcome is self-contradictory and confusing for the
+    candidate, so it is omitted in favor of a neutral line instead.
+    The recruiter's actual reason (HumanDecision.reason) still stays
+    internal-only -- this fix does not expose it.
+    """
+
+    candidate_email = (application.candidate.email or "").strip()
+
+    if not candidate_email:
+        raise ValueError("Candidate has no email address on file.")
+
+    outcome_label = (
+        "accepted" if application.status == "accepted" else "not selected"
+    )
+
+    subject = f"Update on your application: {application.job.title}"
+
+    body_lines = [
+        f"Dear {application.candidate.full_name},",
+        "",
+        f"Thank you for applying for the {application.job.title} "
+        "position.",
+        "",
+        f"After review, your application has been {outcome_label}.",
+    ]
+
+    if application.ai_feedback and agreed_with_ai:
+        body_lines += [
+            "",
+            "Feedback:",
+            application.ai_feedback,
+        ]
+    elif not agreed_with_ai:
+        body_lines += [
+            "",
+            "This outcome reflects the final decision of an "
+            "authorized human recruitment officer after full review "
+            "of your application.",
+        ]
+
+    body_lines += [
+        "",
+        "Thank you for your interest.",
+    ]
+
+    send_mail(
+        subject=subject,
+        message="\n".join(body_lines),
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+        recipient_list=[candidate_email],
+        fail_silently=False,
+    )
 
 @login_required
 def candidate_detail(request, application_id):
@@ -119,6 +196,30 @@ def candidate_detail(request, application_id):
         if not (is_staff and _can_make_final_decision(request.user)):
             return HttpResponseForbidden(
                 "Only an administrator can record the final review decision."
+            )
+
+                # LOCKED FINAL DECISION (2026-10-05): once an administrator has
+        # recorded a Human Review decision for this application, it is
+        # final and can no longer be changed from this page -- the
+        # "Change the decision" buttons are no longer rendered once a
+        # decision exists (see candidate_detail.html). This check is
+        # the server-side backstop for that same rule, so it still
+        # holds even if a POST is sent directly. Without this,
+        # update_or_create() below would silently overwrite a decision
+        # that already triggered Notification #2 (the final-decision
+        # email), which could send that email to the candidate a
+        # second time with a different outcome.
+        if hasattr(application, "human_decision"):
+
+            messages.error(
+                request,
+                "A final decision has already been recorded for this "
+                "application and cannot be changed."
+            )
+
+            return redirect(
+                "candidate_detail",
+                application_id=application.id
             )
 
         decision = request.POST.get("decision")
@@ -171,6 +272,32 @@ def candidate_detail(request, application_id):
             )
 
             application.save()
+
+            # FINAL FINISHING SESSION (2026-10-04, Section M): candidate
+            # feedback email, triggered only after the ADMIN's final
+            # recommendation is recorded -- never before, and never
+            # with the AI's own output standing in as the outcome.
+            # Reuses the EXISTING Brevo-backed send_mail() (same one
+            # accounts/views_auth.py already uses for verification
+            # emails) -- no new email system. Content is limited to
+            # what a candidate may see: job title, outcome, and the
+            # candidate-safe recommendation text already shown to them
+            # elsewhere (ai_feedback) -- never the recruiter's reason,
+            # internal RAG/legal evidence, or any other internal
+            # field. Never blocks the admin's own request -- a mail
+            # failure is caught and surfaced as a warning, not a hard
+            # error, and does NOT undo the recorded decision.
+            try:
+                _send_candidate_outcome_email(
+                    application, agreed_with_ai=agreed_with_ai
+                )
+            except Exception as e:
+                messages.warning(
+                    request,
+                    "Decision recorded, but the candidate notification "
+                    f"email could not be sent right now ({e}). You may "
+                    "need to follow up with the candidate directly."
+                )
 
             messages.success(
                 request,
@@ -382,56 +509,91 @@ def apply_job(request, job_id):
             )
 
         # =====================================
-        # EXTRACT PDF TEXT
+        # DOCUMENT/CV QUALITY GATE (FINAL FINISHING SESSION, 2026-10-04)
+        # =====================================
+        # Runs BEFORE any Application row is created and BEFORE any
+        # expensive AI call -- a document classified invalid here
+        # never reaches candidate profiling / Rule Engine / Skill
+        # Matching / RAG / fused reasoning at all. This reuses the
+        # EXISTING extraction/OCR pipeline unchanged (see
+        # talent/document_quality.py) -- no OCR rewrite, no new
+        # extraction logic, just an explicit, loggable decision
+        # object instead of a bare try/except around
+        # extract_text_from_pdf().
         # =====================================
 
-        try:
+        pdf_path = candidate.cv_file.path
 
-            pdf_path = candidate.cv_file.path
+        _extract_start = perf_counter()
 
-            # APPLY JOB OPTIMIZATION (2026-10-04): timing only, same
-            # "[APPLY-JOB-TIMING]" line format as
-            # recruitment_pipeline.py's end-of-run summary.
-            _extract_start = perf_counter()
+        quality = check_document_quality(pdf_path)
 
-            candidate.extracted_text = extract_text_from_pdf(pdf_path)
+        print(
+            "[APPLY-JOB-TIMING] "
+            f"text_extraction={perf_counter() - _extract_start:.2f}s"
+        )
 
-            print(
-                "[APPLY-JOB-TIMING] "
-                f"text_extraction={perf_counter() - _extract_start:.2f}s"
-            )
+        print(
+            "[DOCUMENT-QUALITY] "
+            f"valid={quality.valid} "
+            f"extraction_method={quality.extraction_method} "
+            f"ocr_used={quality.ocr_used} "
+            f"extracted_text_length={quality.extracted_text_length}"
+        )
 
-            candidate.save()
-
-            if candidate.extracted_text.startswith("[OCR NOTICE:"):
-                # Text was recovered via OCR fallback, but at LOW
-                # confidence (see ai_engine/services/ocr_fallback.py).
-                # Surface this to the human now, at submission time --
-                # don't wait for a recruiter to notice sparse/garbled
-                # fields later on Candidate Detail.
-                messages.warning(
-                    request,
-                    "Your CV appears to be a scanned document, and text "
-                    "extraction quality was low. Some information may not "
-                    "have been read correctly. Consider re-uploading a "
-                    "clearer scan or a digitally-generated PDF if your "
-                    "application results look incomplete."
-                )
-
-        except CVExtractionError as e:
-
+        if not quality.valid:
+            # DOCUMENT_INVALID: no Application row is created (same
+            # behavior as before this change -- the candidate record
+            # created above is rolled back), so the expensive AI
+            # pipeline is never queued for an unreadable document.
+            # Candidate can immediately resubmit with a better file.
             candidate.cv_file.delete(save=False)
             candidate.delete()
 
-            messages.error(request, str(e))
+            messages.error(request, quality.reason)
 
             return redirect(
                 "apply_job",
                 job_id=job.id
             )
 
+        candidate.extracted_text = quality.extracted_text
+
+        candidate.save()
+
+        if quality.ocr_used and quality.quality_notice:
+            # Text was recovered via OCR fallback, but at LOW
+            # confidence, or with an extraction warning (see
+            # ai_engine/services/ocr_fallback.py /
+            # document_extraction/router.py). Surface this to the
+            # human now, at submission time -- don't wait for a
+            # recruiter to notice sparse/garbled fields later on
+            # Candidate Detail.
+            messages.warning(
+                request,
+                "Your CV appears to be a scanned document, and text "
+                "extraction quality was low. Some information may not "
+                "have been read correctly. Consider re-uploading a "
+                "clearer scan or a digitally-generated PDF if your "
+                "application results look incomplete."
+            )
+
         # =====================================
-        # CREATE APPLICATION
+        # CREATE APPLICATION -- QUEUED for background AI processing
+        # =====================================
+        # ASYNC APPLY JOB (FINAL FINISHING SESSION, 2026-10-04): the
+        # expensive AI pipeline (lang-detect/translate, candidate
+        # profile, rule engine, skill matching, RAG, fused reasoning,
+        # db save -- measured 89-211s across real local profiling,
+        # see chat report) NO LONGER runs inside this HTTP request.
+        # The candidate gets an immediate response; a separate
+        # background worker (management command
+        # process_pending_applications, see
+        # ai_engine/management/commands/) picks up QUEUED applications
+        # and runs the SAME recruitment_pipeline() unchanged. This is
+        # a durable, DB-backed queue (ai_status is a plain CharField,
+        # no migration needed for new string values) -- not an
+        # in-memory thread, so it survives a web-process restart.
         # =====================================
 
         application = Application.objects.create(
@@ -439,29 +601,17 @@ def apply_job(request, job_id):
             job=job
         )
 
-        # =====================================
-        # RUN AI PIPELINE
-        # =====================================
+        application.ai_status = "QUEUED"
 
-        try:
-            recruitment_pipeline(application)
-            messages.success(
-                request,
-                "Application submitted and AI analysis complete."
-            )
+        application.save()
 
-        except Exception:
-            # recruitment_pipeline already recorded ai_status="FAILED"
-            # and the error detail on the application before re-raising.
-            # The application/candidate stay saved so a recruiter can
-            # still see it and re-run analysis later; we just avoid
-            # crashing the candidate's browser mid-submission.
-            messages.error(
-                request,
-                "Your application was submitted, but the AI analysis "
-                "could not be completed right now (the AI service may "
-                "be unavailable). A recruiter will review it manually."
-            )
+        messages.success(
+            request,
+            "Application submitted successfully. Your CV passed "
+            "quality checks and has been queued for AI-assisted "
+            "screening -- you can check back on your application "
+            "status, you do not need to keep this page open."
+        )
 
         return redirect(
             "job_detail",
@@ -477,7 +627,6 @@ def apply_job(request, job_id):
             "applicant_email": applicant_email
         }
     )
-
 
 @login_required
 def candidate_cv_text(request, candidate_id):
@@ -567,7 +716,6 @@ def ranking_jobs(request):
         }
     )
 
-
 @login_required
 @permission_required("recruitment_manage")
 def ranking_by_job(
@@ -602,7 +750,6 @@ def ranking_by_job(
         }
     )
 
-
 @login_required
 @permission_required("recruitment_manage")
 def test_semantic_matching(
@@ -612,7 +759,6 @@ def test_semantic_matching(
     candidate = Candidate.objects.get(
         id=15
     )
-
 
     job = Job.objects.first()
 
@@ -710,7 +856,6 @@ def home(request):
         request,
         "talent/home.html"
     )
-
 
 @login_required
 def my_applications(request):

@@ -9,8 +9,6 @@ from .language_detection import detect_language
 from .translation import translate_tetum_to_english
 from django.utils import timezone
 
-logger = logging.getLogger(__name__)
-
 from .llm_candidate_profile import analyze_cv, DEFAULT_PROFILE
 from .llm_reasoning import generate_recruitment_assessment, split_assessment
 from .skill_gap_analysis import skill_gap_analysis
@@ -19,32 +17,72 @@ from .model_config import MODEL_NAME as LLM_MODEL_NAME
 from .model_config import NEW_CANDIDATE_RAG
 from .candidate_legal_rag import get_candidate_legal_evidence
 
+logger = logging.getLogger(__name__)
+
 # APPLY JOB OPTIMIZATION PHASE (2026-10-04) -- candidate-profile cache.
 #
-# WHY: profiling showed analyze_cv() (STEP 1, one full LLM call with
-# up to 3 attempts) costs ~30s+ on a real run. That cost is paid
-# again, unchanged, if the SAME candidate applies to a DIFFERENT job
-# with the SAME CV text -- the profile (education/skills/experience
-# extracted from the CV) is a pure function of `processing_text` and
-# does NOT depend on which job is being applied to. This mirrors the
-# exact SHA-256-keyed caching pattern already used and documented for
-# document extraction (see ai_engine/services/document_extraction/
-# router.py) -- same rationale, same mechanism, no new dependency.
+# WHY: profiling (see docs/pilot/.. chat report) showed analyze_cv()
+# (STEP 1, one full LLM call with up to 3 attempts) costs ~30s+ on a
+# real run. That cost is paid again, unchanged, if the SAME candidate
+# applies to a DIFFERENT job with the SAME CV text -- the profile
+# (education/skills/experience extracted from the CV) is a pure
+# function of `processing_text` and does NOT depend on which job is
+# being applied to. This mirrors the exact SHA-256-keyed caching
+# pattern already used and documented for document extraction (see
+# ai_engine/services/document_extraction/router.py) -- same rationale,
+# same mechanism, no new dependency.
 #
 # SAFETY: a cache hit returns the EXACT SAME dict a fresh analyze_cv()
 # call would have returned for byte-identical input text -- this is
 # not an approximation or a shortcut that changes what gets computed,
 # only *when* it gets (re)computed. Only a profile that already PASSED
-# the existing validity guard below is ever cached, so a transient LLM
-# failure can never get "stuck" in the cache. The fused-reasoning call
-# (STEP 3, the actual per-job recruitment decision) is NEVER cached.
+# the existing validity guard below (STEP 1's "technical parsing
+# failure" check) is ever cached, so a transient LLM failure can never
+# get "stuck" in the cache -- the next application for that same CV
+# text simply retries analyze_cv() for real. The fused-reasoning call
+# (STEP 3, the actual per-job recruitment decision) is NEVER cached --
+# caching that would risk a stale recruitment decision, which is
+# explicitly out of scope.
 CANDIDATE_PROFILE_CACHE_KEY_PREFIX = "candidate_profile:v1:"
-CANDIDATE_PROFILE_CACHE_TTL_SECONDS = 60 * 60 * 24  # 24h
+CANDIDATE_PROFILE_CACHE_TTL_SECONDS = 60 * 60 * 24  # 24h, same as TASK G's
+                                                     # document-extraction
+                                                     # cache -- long enough
+                                                     # for a same-day
+                                                     # multi-job
+                                                     # application burst,
+                                                     # short enough that a
+                                                     # stale entry doesn't
+                                                     # linger indefinitely.
 
 
 def _candidate_profile_cache_key(processing_text):
     digest = hashlib.sha256(processing_text.encode("utf-8")).hexdigest()
     return f"{CANDIDATE_PROFILE_CACHE_KEY_PREFIX}{digest}"
+
+
+# FINAL FINISHING SESSION (2026-10-04) -- Tetum translation cache.
+#
+# WHY: profiling (CV5, real local run) showed translate_tetum_to_
+# english() costing 77.27s -- comparable to, sometimes larger than,
+# the candidate-profile LLM call itself. translate_tetum_to_english()
+# is a pure function of the ORIGINAL cv_text (same input always
+# produces the same translation request), so the exact same SHA-256
+# cache pattern already proven safe for the candidate profile (above)
+# and for document extraction (document_extraction/router.py) applies
+# here with the same safety argument: a cache hit returns the exact
+# same translated text a fresh call would have returned for
+# byte-identical input. Only a SUCCESSFUL translation
+# (result["success"] is True) is ever cached -- translate_tetum_to_
+# english() itself never raises and always returns a dict (see
+# translation.py), so "success" is the one authoritative signal, not
+# an assumption about what failure looks like.
+TETUM_TRANSLATION_CACHE_KEY_PREFIX = "tetum_translation:v1:"
+TETUM_TRANSLATION_CACHE_TTL_SECONDS = 60 * 60 * 24  # 24h, same as above.
+
+
+def _tetum_translation_cache_key(cv_text):
+    digest = hashlib.sha256(cv_text.encode("utf-8")).hexdigest()
+    return f"{TETUM_TRANSLATION_CACHE_KEY_PREFIX}{digest}"
 
 
 LLM_PROVIDER_NAME = "Ollama (local)"
@@ -220,9 +258,46 @@ def recruitment_pipeline(application):
 
         language_result = detect_language(cv_text)
 
+        translation_cache_hit = False
+
         if language_result["tetum_significant"]:
-            translation_result = translate_tetum_to_english(cv_text)
+
+            translation_cache_key = _tetum_translation_cache_key(cv_text)
+
+            cached_translation = cache.get(translation_cache_key)
+
+            if cached_translation is not None:
+
+                translation_result = cached_translation
+
+                translation_cache_hit = True
+
+                logger.info(
+                    "[APPLY-JOB-TIMING] Tetum translation cache hit "
+                    "(key=%s...) -- skipping translate_tetum_to_"
+                    "english() LLM call.",
+                    translation_cache_key[-12:]
+                )
+
+            else:
+
+                translation_result = translate_tetum_to_english(cv_text)
+
+                if translation_result.get("success"):
+                    # Only a SUCCESSFUL translation is ever cached (see
+                    # module docstring above) -- a failed translation
+                    # (translation_result["success"] is False) is
+                    # never cached, so it can never get "stuck"; the
+                    # next application with this exact CV text simply
+                    # retries translate_tetum_to_english() for real.
+                    cache.set(
+                        translation_cache_key,
+                        translation_result,
+                        timeout=TETUM_TRANSLATION_CACHE_TTL_SECONDS
+                    )
+
             processing_text = translation_result["translated_text"]
+
         else:
             translation_result = None
             processing_text = cv_text
@@ -233,6 +308,13 @@ def recruitment_pipeline(application):
         # STEP 1
         # Candidate Intelligence Profile
         # =====================================
+        # APPLY JOB OPTIMIZATION (2026-10-04): check the SHA-256 cache
+        # first (see module docstring above) -- a cache hit skips the
+        # analyze_cv() LLM call entirely and returns the exact same
+        # dict a fresh call would have returned for this exact CV
+        # text. A cache miss falls through to the UNCHANGED analyze_cv()
+        # call below; nothing about what gets computed is different,
+        # only whether it gets recomputed for byte-identical input.
 
         profile_cache_key = _candidate_profile_cache_key(processing_text)
 
@@ -306,10 +388,10 @@ def recruitment_pipeline(application):
 
         if not profile_cache_hit:
             # Only a profile that already passed the validity guard
-            # above is ever cached -- a technical-failure profile is
-            # never cached, so it can never get "stuck"; the next
-            # application for this exact CV text simply retries
-            # analyze_cv() for real.
+            # above is ever cached (see module docstring) -- a
+            # technical-failure profile is never cached, so it can
+            # never get "stuck"; the next application for this exact
+            # CV text simply retries analyze_cv() for real.
             cache.set(
                 profile_cache_key,
                 profile,
@@ -344,7 +426,8 @@ def recruitment_pipeline(application):
             rule_result = future_rule.result()
 
             gap_result = future_gap.result()
-            t_rule_skill = perf_counter()
+
+        t_rule_skill = perf_counter()
 
         # =====================================
         # STEP 2.5 (Phase 21, research, gated by NEW_CANDIDATE_RAG)
@@ -409,6 +492,35 @@ def recruitment_pipeline(application):
         )
 
         t_fused = perf_counter()
+
+        # FINAL FINISHING SESSION reliability fix (2026-10-04, Section
+        # H/G of the task): generate_recruitment_assessment() never
+        # raises -- on a malformed/empty LLM response it catches
+        # internally and returns DEFAULT_ASSESSMENT with
+        # recommendation="Reasoning unavailable: {error}" (see
+        # llm_reasoning.py's except-block, confirmed by reading that
+        # code -- this exact prefix is ONLY ever set there, never on
+        # any success path, so it is a safe, narrow signal). Before
+        # this fix, that degraded default silently flowed through as
+        # ai_status="SUCCESS" with ai_score=0 / ai_decision="Consider"
+        # -- indistinguishable from a real low-scoring recommendation
+        # (this is exactly what happened to Application 71). Routed
+        # through the SAME existing failure mechanism this pipeline
+        # already uses for every other precondition failure (empty CV
+        # text, missing job profile, CV-parsing technical failure):
+        # raise, and the except block below records
+        # ai_status="FAILED" with the reason in ai_feedback, saves the
+        # application (so it remains available for admin/manual
+        # review, CV not deleted), and re-raises. No score=0/
+        # "Not Recommended" is fabricated -- an AI failure stays an AI
+        # failure, never a fake deterministic recruitment decision.
+        if str(assessment.get("recommendation", "")).startswith(
+            "Reasoning unavailable:"
+        ):
+            raise ValueError(
+                "AI recommendation reasoning could not be generated: "
+                + str(assessment.get("recommendation", ""))
+            )
 
         semantic_result, report = split_assessment(assessment)
 
@@ -532,10 +644,15 @@ def recruitment_pipeline(application):
 
         # APPLY JOB OPTIMIZATION (2026-10-04): per-stage timing
         # breakdown -- additive observability only, changes no
-        # behavior/decision/score.
+        # behavior/decision/score. This is the "where exactly is the
+        # time being spent" instrumentation: run a real Apply Job
+        # submission (with Ollama/online_gemma actually reachable) and
+        # read this one line to get real per-stage numbers, instead of
+        # guessing which stage to optimize next.
         print(
             "[APPLY-JOB-TIMING] "
-            f"lang_detect_translate={t_lang - start:.2f}s "
+            f"lang_detect_translate={t_lang - start:.2f}s"
+            f"(translation_cache_hit={translation_cache_hit}) "
             f"candidate_profile={t_profile - t_lang:.2f}s"
             f"(cache_hit={profile_cache_hit}) "
             f"rule_engine_skill_match={t_rule_skill - t_profile:.2f}s "
