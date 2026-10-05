@@ -1,1 +1,2 @@
-python manage.py migrate --noinput && python manage.py seed_roles && python manage.py collectstatic --noinput && gunicorn core.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120
+web: python manage.py migrate --noinput && python manage.py seed_roles && python manage.py collectstatic --noinput && gunicorn core.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120
+worker: python manage.py process_pending_applications --loop --interval 5
