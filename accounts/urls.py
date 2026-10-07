@@ -1,6 +1,12 @@
 from django.urls import path
 from .views import login_view, dashboard, logout_view, user_list, user_create, user_detail, user_edit, user_delete, profile
 from .views_auth import register_view, verify_email_view, resend_verification_view
+from .views_password import (
+    ForgotPasswordView,
+    ForgotPasswordDoneView,
+    ResetPasswordConfirmView,
+    ResetPasswordCompleteView,
+)
 
 urlpatterns = [
     path(
@@ -22,6 +28,28 @@ urlpatterns = [
         'resend-verification/',
         resend_verification_view,
         name='resend_verification'
+    ),
+    # TASK K: forgot password / password reset (Django's own
+    # PasswordReset views and token system -- see views_password.py).
+    path(
+        'forgot-password/',
+        ForgotPasswordView.as_view(),
+        name='password_reset'
+    ),
+    path(
+        'forgot-password/sent/',
+        ForgotPasswordDoneView.as_view(),
+        name='password_reset_done'
+    ),
+    path(
+        'reset/<uidb64>/<token>/',
+        ResetPasswordConfirmView.as_view(),
+        name='password_reset_confirm'
+    ),
+    path(
+        'reset/complete/',
+        ResetPasswordCompleteView.as_view(),
+        name='password_reset_complete'
     ),
     path(
         'dashboard/',

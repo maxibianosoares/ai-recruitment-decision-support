@@ -170,12 +170,17 @@ def _enable_sqlite_wal_mode(sender, connection, **kwargs):
 connection_created.connect(_enable_sqlite_wal_mode)
 
 
+# Password policy is intentionally lenient so candidates (many of whom
+# are not used to strict rules) can register easily. Only a short
+# minimum length is enforced. No "too common", "all numeric" or
+# "similar to username" checks.
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
         'OPTIONS': {'min_length': 6},
     },
 ]
+
 
 LANGUAGE_CODE = 'en-us'
 
@@ -211,6 +216,14 @@ GEMINI_API_KEY = os.environ.get(
 )
 
 LLM_PROVIDER="local"
+
+# TASK K (2026-10-07): how long a password-reset link stays valid, in
+# seconds. Django's own default is 3 days; 1 hour is safer for a
+# platform that holds candidate data. Override with the
+# PASSWORD_RESET_TIMEOUT environment variable if needed.
+PASSWORD_RESET_TIMEOUT = int(
+    os.environ.get("PASSWORD_RESET_TIMEOUT", "3600")
+)
 
 # =====================================================
 # EMAIL (registration / email verification feature)
