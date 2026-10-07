@@ -54,6 +54,21 @@ ALLOWED_HOSTS = os.environ.get(
     "localhost,127.0.0.1"
 ).split(",")
 
+# SITE_URL -- the public address of this site, used ONLY to build links
+# inside emails that are sent from the background worker (which has no
+# web request to read the host from), e.g. the "view your AI
+# recommendation" link. Set SITE_URL explicitly in production
+# (e.g. https://your-app.up.railway.app). If it is not set, Railway's
+# own RAILWAY_PUBLIC_DOMAIN variable is used when present, and
+# otherwise the local development address.
+_railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip()
+
+SITE_URL = (
+    os.environ.get("SITE_URL", "").strip()
+    or (f"https://{_railway_domain}" if _railway_domain else "")
+    or "http://127.0.0.1:8000"
+).rstrip("/")
+
 # CSRF_TRUSTED_ORIGINS -- only needed for a public HTTPS deployment
 # (e.g. Render). Empty by default so local dev / LAN demos (plain
 # HTTP, same-origin requests) are unaffected -- Django only requires
@@ -243,4 +258,3 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 # console/SMTP backend above and this key is simply unused.
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
 STATIC_ROOT = BASE_DIR / "staticfiles"
-

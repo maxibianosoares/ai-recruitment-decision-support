@@ -1,98 +1,104 @@
 """
 FINAL FINISHING SESSION (2026-10-04, updated 2026-10-05 for automatic
-execution) -- Async Apply Job background worker.
+execution, updated 2026-10-06 for TASK I) -- Async Apply Job background
+worker.
 
-WHY THIS SHAPE: the audit (see chat report) confirmed this project has
-NO existing durable background mechanism -- no Celery, no Redis, no
-RQ, no Django-Q. Per the task's explicit safety rule, a raw
-threading.Thread()/asyncio.create_task() fire-and-forget inside the
-web request is NOT acceptable (it would not survive a Render web
-process restart/recycle, and would stop running the moment nobody is
-sending it HTTP requests).
+WHY THIS SHAPE: this project has NO durable background mechanism --
+no Celery, no Redis, no RQ, no Django-Q. A raw threading.Thread()/
+asyncio.create_task() inside the web request is NOT acceptable (it
+would not survive a web process restart, and would stop the moment
+nobody is sending HTTP requests).
 
 This is the smallest production-safe mechanism that needs NO new
-infrastructure dependency at all: a DB-backed queue using the
-Application.ai_status field that already exists (plain CharField, no
-choices=, so these new string values need no migration), polled by
-this management command running as its own OS process. State lives in
-the database, not in process memory, so it is durable across restarts
-of either the web process or this worker process.
+infrastructure: a DB-backed queue using the Application.ai_status
+field (a plain CharField, so new string values need no migration),
+polled by this management command running as its own OS process. State
+lives in the database, not in process memory, so it survives restarts
+of either the web process or this worker.
 
-AUTOMATIC EXECUTION (2026-10-05): this command is now meant to run
-continuously (`--loop`) as its OWN long-lived process -- in
-production, that process is a separate Render "Background Worker"
-service (see Procfile's new `worker:` line and the deployment notes in
-the chat report), supervised and auto-restarted by Render itself, not
-by this project's code. Nobody needs to SSH into Render and run this
-command by hand; Render starts it when the service deploys and
-restarts it if it crashes, exactly like it already does for the `web`
-service. Locally, the equivalent is simply running this same command
-with --loop in a second terminal (see chat report for the exact local
-dev instructions) -- there is no in-process/thread-based "auto-start"
-here on purpose, because that would NOT reflect how it actually runs
-in production and would violate the "no thread/asyncio background
-task" rule.
+RUNNING: meant to run continuously (`--loop`) as its OWN long-lived
+process -- in production the Railway "worker" service from the
+Procfile; locally a second terminal. Nothing starts it in-process.
 
-State machine (Application.ai_status):
-    QUEUED      -- set by talent/views.py.apply_job() immediately
-                   after a document passes the quality gate. The
-                   candidate's HTTP request returns here -- it never
-                   waits for the AI pipeline.
-    PROCESSING  -- set by THIS command right before calling the
-                   unchanged recruitment_pipeline().
-    SUCCESS     -- set by recruitment_pipeline() itself on success
-                   (unchanged).
-    FAILED      -- set by recruitment_pipeline() itself on any
-                   failure, including the Section H reliability fix
-                   (malformed/empty fused reasoning -- unchanged
-                   function, raises instead of faking success).
+TASK I -- the heavy work moved here. The web request used to run
+document extraction/OCR before creating the Application (blocked by
+gunicorn's 120s timeout, and able to exhaust memory on a long scan).
+Now the web request only validates the file's structure and queues it;
+this worker does the extraction and then the AI screening.
 
-CRASH RECOVERY (2026-10-05): if this worker process itself is killed
-or crashes (not a Python exception inside recruitment_pipeline, which
-is already handled below, but the OS process dying -- e.g. Render
-redeploying/recycling the Background Worker service) WHILE an
-application was marked PROCESSING, nothing would otherwise ever move
-that row back to QUEUED, since the normal poll only ever looks for
-ai_status="QUEUED". See _requeue_stale_processing_applications() below
--- run once at startup, it requeues any leftover PROCESSING row so it
-gets retried through the full pipeline on the next pass. This is safe
-specifically because this project runs exactly ONE worker instance
-(see the atomic claim in _process_one_pass() below for why a second
-concurrent instance is also safe, should one ever be added).
+State machine (Application.ai_status, see talent/statuses.py):
+
+    QUEUED             set by apply_job() after the cheap structural
+                       check; the candidate's request returns here.
+    EXTRACTING         worker claimed it and is reading the document.
+      -> DOCUMENT_INVALID   corrupt / password-protected / unrenderable.
+      -> EXTRACTION_FAILED  valid PDF, but text missing, too little,
+                            low quality, or a page failed technically.
+         (neither reaches the AI pipeline; neither sends Notification
+         #1; the candidate gets an explanatory email and may re-upload)
+    EXTRACTED          text is complete enough; saved on the candidate.
+    PROCESSING         recruitment_pipeline() (unchanged) is running.
+    SUCCESS / FAILED   set by recruitment_pipeline() itself.
+                       Notification #1 is sent ONLY after SUCCESS.
+
+DUPLICATE PREVENTION: the QUEUED -> EXTRACTING/PROCESSING claim is one
+DB transaction using select_for_update(skip_locked=True), so two worker
+instances can never take the same application (a no-op on SQLite, real
+row locks on production Postgres).
+
+CRASH RECOVERY: if this process dies while an application is
+EXTRACTING / EXTRACTED / PROCESSING, nothing would otherwise move it
+back. At startup every such row is requeued; the uploaded PDF is kept
+in ApplicationDocument until the application reaches a terminal state,
+so extraction can simply be redone from the start (the pipeline is not
+resumable mid-way either). Safe because exactly ONE worker instance
+runs; if more are ever added, requeue-at-startup would need a
+heartbeat/lease instead.
+
+LEGACY ROWS: an application queued before TASK I has no
+ApplicationDocument (its text was already extracted by the old web
+request). It skips extraction and goes straight to the pipeline.
 
 Usage:
 
     python manage.py process_pending_applications
-        -- single pass: processes every currently-QUEUED application
-           once, then exits. Used by the automated tests and for a
-           manual one-off local run.
+        -- single pass over everything currently QUEUED, then exit
+           (automated tests, one-off local run).
 
     python manage.py process_pending_applications --loop
-        -- polls every --interval seconds (default 5) until stopped.
-           This is the command Render's Background Worker service
-           (production) and a second local terminal (development) both
-           run continuously -- see the chat report for exact commands.
+        -- poll every --interval seconds until stopped (production).
 """
 
+import os
+import tempfile
 import time
 
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import (
+    InterfaceError,
+    OperationalError,
+    connections,
+    transaction,
+)
+from django.utils import timezone
 
-from talent.models import Application
-from talent.notifications import send_ai_screening_completed_email
+from talent import statuses as S
+from talent.models import Application, ApplicationDocument
+from talent.notifications import (
+    send_ai_screening_completed_email,
+    send_document_issue_email,
+)
 from ai_engine.services.recruitment_pipeline import recruitment_pipeline
+from ai_engine.services.document_extraction import orchestrator
 
 
 class Command(BaseCommand):
 
     help = (
         "Processes Application rows queued (ai_status='QUEUED') by "
-        "the async Apply Job flow, running the unchanged "
-        "recruitment_pipeline() for each. Intended to run "
-        "continuously via --loop, as its own process (a Render "
-        "Background Worker service in production; a second local "
-        "terminal in development)."
+        "the async Apply Job flow: extracts the uploaded CV, then runs "
+        "the unchanged recruitment_pipeline(). Intended to run "
+        "continuously via --loop, as its own process."
     )
 
     def add_arguments(self, parser):
@@ -101,8 +107,7 @@ class Command(BaseCommand):
             "--loop",
             action="store_true",
             help="Keep polling for newly-queued applications instead "
-                 "of exiting after one pass. This is the mode used "
-                 "for continuous/automatic execution.",
+                 "of exiting after one pass.",
         )
 
         parser.add_argument(
@@ -110,9 +115,7 @@ class Command(BaseCommand):
             type=float,
             default=5.0,
             help="Seconds to sleep between polls when --loop is set "
-                 "and nothing was found to process (default 5). Not "
-                 "a busy-loop: the sleep only happens when a pass "
-                 "found zero QUEUED applications.",
+                 "and nothing was found to process (default 5).",
         )
 
     def handle(self, *args, **options):
@@ -127,11 +130,42 @@ class Command(BaseCommand):
             )
         )
 
-        self._requeue_stale_processing_applications()
+        # Recovery of rows left in-flight by a previous run happens
+        # first, and again after any database error below.
+        needs_recovery = True
 
         while True:
 
-            processed_any = self._process_one_pass()
+            try:
+
+                if needs_recovery:
+                    self._requeue_stale_in_flight_applications()
+                    needs_recovery = False
+
+                processed_any = self._process_one_pass()
+
+            except (OperationalError, InterfaceError) as db_error:
+                # A transient database problem (a dropped Neon
+                # connection, a SQLite "database is locked" while the
+                # web process is writing) must not kill the worker for
+                # good. Drop the connection, wait, and try again. The
+                # application being handled when it happened may have
+                # been left EXTRACTING/EXTRACTED/PROCESSING, so recovery
+                # runs again before the next pass (safe: this is the
+                # only worker, and it is not processing anything now).
+                if not loop:
+                    raise
+
+                self.stdout.write(
+                    self.style.WARNING(
+                        "[WORKER] database error, will retry in "
+                        f"{interval}s: {db_error}"
+                    )
+                )
+                connections.close_all()
+                needs_recovery = True
+                time.sleep(interval)
+                continue
 
             if not loop:
                 break
@@ -139,25 +173,25 @@ class Command(BaseCommand):
             if not processed_any:
                 time.sleep(interval)
 
-    def _requeue_stale_processing_applications(self):
+    # ------------------------------------------------------------------
+    # Crash recovery
+    # ------------------------------------------------------------------
+
+    def _requeue_stale_in_flight_applications(self):
         """
-        Crash-recovery step, run once when this worker process starts
-        (see module docstring). Any Application still marked
-        PROCESSING at startup cannot belong to a worker that is still
-        alive -- this process is the only worker instance, and it is
-        only just starting now -- so it can only be left over from a
-        previous run of this same command that did not get to finish
-        normally (crash, kill, Render recycling the service mid-job).
-        Reset to QUEUED so the normal poll below picks it up and
-        retries it through the full, unchanged recruitment_pipeline()
-        -- not resumed mid-way (this pipeline is not designed to be
-        partially resumed; a full retry is the safe behavior here,
-        exactly as a fresh application would be processed).
+        Run once at startup. Any application still EXTRACTING,
+        EXTRACTED or PROCESSING cannot belong to a live worker (this is
+        the only worker and it is only just starting), so it is left
+        over from a run that did not finish. Reset to QUEUED for a full
+        retry from extraction (the PDF is still stored; see module
+        docstring).
         """
+
+        self._remove_orphan_documents()
 
         stale_ids = list(
             Application.objects
-            .filter(ai_status="PROCESSING")
+            .filter(ai_status__in=S.IN_FLIGHT_STATUSES)
             .values_list("id", flat=True)
         )
 
@@ -165,28 +199,53 @@ class Command(BaseCommand):
             return
 
         Application.objects.filter(id__in=stale_ids).update(
-            ai_status="QUEUED"
+            ai_status=S.QUEUED
         )
 
         self.stdout.write(
             self.style.WARNING(
                 f"[WORKER] requeued {len(stale_ids)} application(s) "
-                "found stuck in PROCESSING from a previous run "
+                "found stuck in an in-flight state from a previous run "
                 f"(crash/restart recovery): {stale_ids}"
             )
         )
 
+    def _remove_orphan_documents(self):
+        """
+        A stored PDF is only needed while its application is QUEUED or
+        in flight, or may be re-queued (DOCUMENT_INVALID /
+        EXTRACTION_FAILED rows have already had theirs released). If a
+        previous run died between reaching a terminal state and
+        releasing the PDF, the 5MB blob would stay forever; remove it.
+        """
+
+        keep = (S.QUEUED,) + tuple(S.IN_FLIGHT_STATUSES)
+
+        deleted, _ = (
+            ApplicationDocument.objects
+            .exclude(application__ai_status__in=keep)
+            .delete()
+        )
+
+        if deleted:
+            self.stdout.write(
+                f"[WORKER] removed {deleted} orphaned stored document(s)."
+            )
+
+    # ------------------------------------------------------------------
+    # Main pass
+    # ------------------------------------------------------------------
+
     def _process_one_pass(self):
         """
-        Processes every application currently QUEUED at the moment
-        this pass started. Returns True if at least one application
-        was processed (so --loop can skip the sleep and check again
-        immediately in case more arrived while processing).
+        Processes every application QUEUED at the moment this pass
+        started. Returns True if at least one was processed (so --loop
+        skips the sleep and checks again immediately).
         """
 
         queued_ids = list(
             Application.objects
-            .filter(ai_status="QUEUED")
+            .filter(ai_status=S.QUEUED)
             .order_by("applied_at")
             .values_list("id", flat=True)
         )
@@ -201,74 +260,109 @@ class Command(BaseCommand):
 
         for application_id in queued_ids:
 
-            # ATOMIC CLAIM (2026-10-05, automatic-worker hardening):
-            # the fetch-check-update that marks an application
-            # PROCESSING is now wrapped in one DB transaction using
-            # select_for_update(skip_locked=True) -- this makes "two
-            # workers never process the same application twice" true
-            # even if more than one worker instance is ever run
-            # concurrently (e.g. if the Render Background Worker
-            # service were later scaled to >1 instance), not just true
-            # "by convention" as the single select+update below used
-            # to be (a race was possible between the status check and
-            # the save under concurrent workers). skip_locked=True
-            # means a second worker that reaches the same row while
-            # it's locked simply skips it this pass, instead of
-            # blocking or double-processing it.
-            #
-            # On SQLite (local dev), select_for_update() has no
-            # effect (SQLite has no row-level locking support) --
-            # this is a documented, harmless no-op there, which is
-            # fine because local dev only ever runs one worker
-            # instance. On the production Postgres database (Neon),
-            # it provides the real row lock.
-            with transaction.atomic():
+            application, has_document = self._claim(application_id)
 
-                try:
-                    application = (
-                        Application.objects
-                        .select_for_update(skip_locked=True)
-                        .select_related("candidate", "job")
-                        .get(id=application_id)
-                    )
-                except Application.DoesNotExist:
-                    continue
-
-                if application.ai_status != "QUEUED":
-                    # Either already claimed by another worker
-                    # instance between the query above and this
-                    # lock, or already processed -- skip, never
-                    # reprocess.
-                    continue
-
-                application.ai_status = "PROCESSING"
-                application.save(update_fields=["ai_status"])
+            if application is None:
+                continue
 
             self.stdout.write(
                 f"[WORKER] processing application {application.id} "
                 f"(candidate={application.candidate.full_name!r}, "
-                f"job={application.job.title!r})..."
+                f"job={application.job.title!r}, "
+                f"has_document={has_document})..."
             )
 
+            self._run(application, has_document)
+
+            # A terminal state was reached: the stored PDF is no
+            # longer needed. Deliberately NOT in a `finally`: if the
+            # process is interrupted mid-application the PDF must stay
+            # so the startup requeue can redo extraction. _run()
+            # handles its own errors, so this line is reached for every
+            # application that actually finished.
+            self._release_document(application.id)
+
+        return True
+
+    def _claim(self, application_id):
+        """
+        Atomic QUEUED -> EXTRACTING (or -> PROCESSING for a legacy row
+        with no stored document). Returns (application, has_document),
+        or (None, False) if it was already taken or processed.
+        """
+
+        with transaction.atomic():
+
             try:
+                application = (
+                    Application.objects
+                    .select_for_update(skip_locked=True)
+                    .select_related("candidate", "job")
+                    .get(id=application_id)
+                )
+            except Application.DoesNotExist:
+                # Gone, or locked by another worker instance.
+                return None, False
 
-                recruitment_pipeline(application)
+            if application.ai_status != S.QUEUED:
+                return None, False
 
+            has_document = ApplicationDocument.objects.filter(
+                application_id=application.id
+            ).exists()
+
+            application.ai_status = (
+                S.EXTRACTING if has_document else S.PROCESSING
+            )
+            application.save(update_fields=["ai_status"])
+
+        return application, has_document
+
+    def _run(self, application, has_document):
+
+        if has_document:
+
+            try:
+                may_continue = self._extract(application)
+            except Exception as e:
+                # An unexpected bug in extraction is a SYSTEM fault,
+                # not the candidate's: record FAILED honestly instead
+                # of telling them to re-upload a fine file.
+                self._mark(
+                    application, S.FAILED,
+                    feedback=f"Document extraction failed unexpectedly: {e}",
+                    error=repr(e),
+                )
                 self.stdout.write(
-                    self.style.SUCCESS(
+                    self.style.ERROR(
                         f"[WORKER] application {application.id} "
-                        "completed: ai_status=SUCCESS"
+                        f"extraction crashed: {e}"
                     )
                 )
+                return
 
-                # Notification #1 (Section 17): sent ONLY on a real
-                # AI_COMPLETED/SUCCESS outcome, right here -- never on
-                # FAILED (the except block below), and never confused
-                # with Notification #2 (the final human decision
-                # email, unchanged -- talent/views.py). An email
-                # failure must not change ai_status or any other
-                # application field (Section 24) -- caught and logged
-                # only, application.ai_status stays "SUCCESS".
+            if not may_continue:
+                return
+
+            application.ai_status = S.PROCESSING
+            application.save(update_fields=["ai_status"])
+
+        try:
+
+            recruitment_pipeline(application)
+
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"[WORKER] application {application.id} "
+                    "completed: ai_status=SUCCESS"
+                )
+            )
+
+            # Notification #1: only after a real AI SUCCESS, never
+            # for an extraction failure (those returned above) and
+            # never for FAILED (the except below). An email failure
+            # must not change ai_status.
+            if application.ai_status == S.SUCCESS:
                 try:
                     send_ai_screening_completed_email(application)
                 except Exception as email_error:
@@ -282,19 +376,118 @@ class Command(BaseCommand):
                         )
                     )
 
-            except Exception as e:
-                # recruitment_pipeline() already recorded
-                # ai_status="FAILED" and the error detail in
-                # ai_feedback on the application before re-raising --
-                # this command just needs to not crash the whole
-                # worker loop over one bad application, so the next
-                # application in this pass (and future passes) still
-                # gets processed.
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"[WORKER] application {application.id} "
-                        f"failed: {e}"
-                    )
+        except Exception as e:
+            # recruitment_pipeline() already recorded FAILED and the
+            # detail in ai_feedback before re-raising; just keep the
+            # worker loop alive for the next application.
+            self.stdout.write(
+                self.style.ERROR(
+                    f"[WORKER] application {application.id} "
+                    f"failed: {e}"
                 )
+            )
 
-        return True
+    # ------------------------------------------------------------------
+    # Extraction stage
+    # ------------------------------------------------------------------
+
+    def _extract(self, application):
+        """
+        Reads the stored PDF. Returns True when the text is complete
+        enough to go to the AI pipeline (status EXTRACTED, text saved
+        on the candidate); returns False after recording a terminal
+        DOCUMENT_INVALID / EXTRACTION_FAILED status.
+        """
+
+        document = ApplicationDocument.objects.get(
+            application_id=application.id
+        )
+
+        fd, path = tempfile.mkstemp(suffix=".pdf")
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(bytes(document.pdf_bytes))
+            outcome = orchestrator.extract_document(path)
+        finally:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+        report = outcome.report
+
+        self.stdout.write(
+            f"[WORKER] application {application.id} extraction: "
+            f"state={outcome.state} pages={report.get('pages_total')} "
+            f"method={report.get('method')} "
+            f"chars={report.get('chars')} "
+            f"complete={report.get('complete')} "
+            f"seconds={report.get('seconds')}"
+        )
+
+        if outcome.state == orchestrator.OK:
+
+            candidate = application.candidate
+            candidate.extracted_text = outcome.text
+            candidate.save(update_fields=["extracted_text"])
+
+            application.extraction_report = report
+            application.ai_status = S.EXTRACTED
+            application.save(
+                update_fields=["ai_status", "extraction_report"]
+            )
+
+            return True
+
+        status = (
+            S.DOCUMENT_INVALID
+            if outcome.state == orchestrator.INVALID
+            else S.EXTRACTION_FAILED
+        )
+
+        application.extraction_report = report
+
+        self._mark(
+            application, status,
+            feedback=outcome.reason,
+            error="; ".join(
+                f"page {f['page']}: {f['error']}"
+                for f in report.get("pages_failed", [])
+            ),
+        )
+
+        try:
+            send_document_issue_email(application)
+        except Exception as email_error:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"[WORKER] application {application.id}: could not "
+                    f"send the document-issue email ({email_error}). "
+                    f"ai_status remains {status}."
+                )
+            )
+
+        self.stdout.write(
+            self.style.WARNING(
+                f"[WORKER] application {application.id} stopped before "
+                f"AI screening: ai_status={status}"
+            )
+        )
+
+        return False
+
+    def _mark(self, application, status, feedback="", error=""):
+
+        application.ai_status = status
+        application.ai_feedback = feedback
+        application.ai_error = error
+        application.ai_processed_at = timezone.now()
+        application.save(update_fields=[
+            "ai_status", "ai_feedback", "ai_error",
+            "ai_processed_at", "extraction_report",
+        ])
+
+    def _release_document(self, application_id):
+        ApplicationDocument.objects.filter(
+            application_id=application_id
+        ).delete()

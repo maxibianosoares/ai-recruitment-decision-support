@@ -111,21 +111,43 @@ def _try_azure(pdf_path, total_pages):
     return result
 
 
-def _try_tesseract(pdf_path):
+def _try_tesseract(pdf_path, deadline=None):
     start = time.perf_counter()
-    text, quality, page_count = extract_text_via_ocr(pdf_path)
+    details = []
+    text, quality, page_count = extract_text_via_ocr(
+        pdf_path, details=details, deadline=deadline
+    )
     processing_time_ms = (time.perf_counter() - start) * 1000
+
+    # TASK I: keep the per-page outcome (method, seconds, DPI, retried,
+    # blank, error) on the result instead of discarding it at the
+    # provider boundary, so the orchestrator can tell "page 3 failed"
+    # from "page 3 is blank" from "page 3 was read".
+    pages = [
+        {
+            "page_number": d.page_number,
+            "chars": len(d.text.strip()),
+            "seconds": round(d.seconds, 2),
+            "dpi": d.dpi,
+            "retried": d.retried,
+            "blank": d.blank,
+            "error": d.error,
+            "text": d.text,
+        }
+        for d in details
+    ]
 
     return DocumentExtractionResult(
         provider="tesseract",
         text=text,
         quality=quality,
         page_count=page_count,
+        pages=pages,
         processing_time_ms=processing_time_ms,
     )
 
 
-def extract_scanned_document(pdf_path, total_pages=None):
+def extract_scanned_document(pdf_path, total_pages=None, deadline=None):
     """
     Returns a DocumentExtractionResult. Raises OCRProcessingError only
     if EVERY available method failed to even produce output (mirrors
@@ -148,7 +170,27 @@ def extract_scanned_document(pdf_path, total_pages=None):
 
     result = None
 
-    if azure_extractor.is_configured():
+    # TASK I: Azure is only used when it can read the WHOLE document.
+    # On the F0 tier it analyzes the first 2 pages only and still
+    # reports success, so for a longer scan pages 3+ would be silently
+    # dropped from candidate.extracted_text (only a warning prefix
+    # would mention it). Tesseract has no such cap and reads every
+    # page, so a document longer than Azure's limit goes straight to
+    # Tesseract instead of being half-read.
+    azure_covers_whole_document = (
+        total_pages is None
+        or total_pages <= azure_extractor.AZURE_MAX_PAGES_ANALYZED
+    )
+
+    if azure_extractor.is_configured() and not azure_covers_whole_document:
+        logger.info(
+            "[DOCUMENT-EXTRACTION] skipping Azure: document has %s "
+            "pages, Azure analyzes at most %s -- using Tesseract so "
+            "no page is dropped.",
+            total_pages, azure_extractor.AZURE_MAX_PAGES_ANALYZED
+        )
+
+    if azure_extractor.is_configured() and azure_covers_whole_document:
         result = _try_azure(pdf_path, total_pages)
 
     if result is None:
@@ -157,12 +199,20 @@ def extract_scanned_document(pdf_path, total_pages=None):
         # extract_text_via_ocr() itself still raises
         # OCRProcessingError if the PDF can't even be rendered, which
         # propagates unchanged to talent/utils.py.
-        result = _try_tesseract(pdf_path)
+        result = _try_tesseract(pdf_path, deadline=deadline)
 
-    if result.quality != OCRQuality.FAILED:
+    has_page_error = any(
+        isinstance(p, dict) and p.get("error") for p in result.pages
+    )
+
+    if result.quality != OCRQuality.FAILED and not has_page_error:
         # Only cache a usable result -- a FAILED attempt might succeed
         # later (e.g. once Azure is configured, or after a transient
         # outage clears), so it must not be "stuck" in the cache.
+        # TASK I: a result in which some page failed technically (a
+        # Tesseract timeout, a render error) is not cached either, for
+        # the same reason -- the candidate re-uploading the same file
+        # must get a fresh attempt, not the same failure for 24 hours.
         cache.set(cache_key, result, timeout=CACHE_TTL_SECONDS)
 
     return result

@@ -22,6 +22,22 @@ stage is still ahead.
 
 from django.conf import settings
 from django.core.mail import send_mail
+from django.urls import reverse
+
+
+def application_detail_url(application):
+    """
+    Absolute link to the candidate's own application page
+    (/ranking/<application id>/), which shows the AI recommendation
+    details and the status. The candidate must be logged in as the
+    account that applied; anyone else gets a permission error from the
+    page itself, so the link carries no secret.
+
+    Built from settings.SITE_URL because emails are sent from the
+    background worker, where there is no request to read the host from.
+    """
+    path = reverse("candidate_detail", args=[application.id])
+    return f"{settings.SITE_URL}{path}"
 
 
 def send_ai_screening_completed_email(application):
@@ -69,6 +85,69 @@ def send_ai_screening_completed_email(application):
         "be reviewed by an authorized human recruitment officer, who "
         "will make the final decision. You will receive a separate "
         "notification once that final decision has been made.",
+        "",
+        "View the full AI recommendation details (log in with the "
+        "account you applied with):",
+        application_detail_url(application),
+        "",
+        "Thank you for your interest.",
+    ]
+
+    send_mail(
+        subject=subject,
+        message="\n".join(body_lines),
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+        recipient_list=[candidate_email],
+        fail_silently=False,
+    )
+
+
+def send_document_issue_email(application):
+    """
+    TASK I: tells the candidate that their CV could not be read well
+    enough for AI screening, and that they can upload a replacement.
+
+    This is NOT Notification #1 (AI screening completed) and NOT
+    Notification #2 (final human decision) -- it is sent when an
+    application stops at DOCUMENT_INVALID / EXTRACTION_FAILED, i.e.
+    before any AI screening happened. It must never claim the
+    candidate was screened.
+
+    Candidate-safe by construction: only the job title and the
+    candidate-facing reason already stored in ai_feedback. Raises on
+    failure; the caller (the worker) catches it and must not let it
+    change ai_status.
+    """
+
+    candidate_email = (application.candidate.email or "").strip()
+
+    if not candidate_email:
+        raise ValueError("Candidate has no email address on file.")
+
+    subject = f"Action needed on your application: {application.job.title}"
+
+    body_lines = [
+        f"Dear {application.candidate.full_name},",
+        "",
+        f"Thank you for applying for the {application.job.title} "
+        "position.",
+        "",
+        "We could not read your CV well enough to start the AI-assisted "
+        "screening, so your application has NOT been screened yet.",
+    ]
+
+    if application.ai_feedback:
+        body_lines += ["", "Reason:", application.ai_feedback]
+
+    body_lines += [
+        "",
+        "What to do: log in, open the position again and upload a "
+        "clearer or digitally-generated PDF of your CV. Your "
+        "application will then be screened.",
+        "",
+        "View your application status (log in with the account you "
+        "applied with):",
+        application_detail_url(application),
         "",
         "Thank you for your interest.",
     ]

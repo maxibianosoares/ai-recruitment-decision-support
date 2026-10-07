@@ -42,7 +42,20 @@ import time
 # not magic numbers, and named so a future paid-tier switch is a
 # one-line change, not a code change.
 AZURE_MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024
-AZURE_MAX_PAGES_ANALYZED = 2
+
+
+def _max_pages_from_env():
+    # TASK I: overridable so a move to a paid (S0) tier -- which has no
+    # 2-page cap -- is a configuration change, not a code change.
+    # Anything unparseable falls back to the F0 value.
+    try:
+        value = int(os.getenv("AZURE_DOCUMENT_INTELLIGENCE_MAX_PAGES", "2"))
+        return value if value >= 1 else 2
+    except ValueError:
+        return 2
+
+
+AZURE_MAX_PAGES_ANALYZED = _max_pages_from_env()
 
 # Transient (worth falling back for *this* request, not a sign the
 # credential/config itself is broken) vs permanent, same convention as

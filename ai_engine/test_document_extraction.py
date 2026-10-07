@@ -14,8 +14,10 @@ Two kinds of tests, deliberately kept separate:
   2. Real end-to-end tests (RealTesseractIntegrationTests) -- Azure is
      NOT configured in these (no env vars set), so they exercise the
      actual, unchanged Tesseract fallback with synthetic PDFs built in
-     this file (reportlab + PIL), proving the new routing code didn't
-     break the pre-existing OCR path for real, not just in theory.
+     this file (fpdf2 + Pillow, both already pinned in
+     requirements.txt -- no extra dependency), proving the new routing
+     code didn't break the pre-existing OCR path for real, not just in
+     theory.
      Requires the tesseract/poppler system binaries -- already a
      requirement of the existing OCR feature, not a new one.
 
@@ -431,11 +433,14 @@ class UtilsAzureIntegrationTests(_ClearCacheMixin, TestCase):
     def test_azure_warning_surfaces_as_extraction_notice(
         self, mock_azure, mock_configured
     ):
+        # A provider warning must still reach the text as a notice.
+        # The document is within Azure's page limit (2), so Azure is
+        # the provider; the warning text itself is the provider's.
         mock_azure.return_value = DocumentExtractionResult(
             provider="azure_document_intelligence",
             text="Bachelor of IT and relevant experience in software.",
             quality=OCRQuality.OK,
-            warnings=["Azure F0 only analyzed the first 2 of 5 pages."],
+            warnings=["Azure reported a provider warning for this file."],
         )
         path = self._tmp_pdf(b"%PDF-1.4 scanned-like, short native text")
 
@@ -443,13 +448,42 @@ class UtilsAzureIntegrationTests(_ClearCacheMixin, TestCase):
             mock_page = MagicMock()
             mock_page.extract_text.return_value = ""  # forces scanned path
             mock_reader = MagicMock()
-            mock_reader.pages = [mock_page] * 5
+            mock_reader.pages = [mock_page] * 2
             mock_reader_cls.return_value = mock_reader
 
             text = extract_text_from_pdf(path)
 
         self.assertTrue(text.startswith("[EXTRACTION NOTICE:"))
-        self.assertIn("first 2 of 5 pages", text)
+        self.assertIn("provider warning", text)
+
+    @patch.object(azure_extractor, "is_configured", return_value=True)
+    @patch.object(azure_extractor, "extract_with_azure")
+    @patch("ai_engine.services.document_extraction.router.extract_text_via_ocr")
+    def test_document_longer_than_azure_limit_skips_azure(
+        self, mock_ocr, mock_azure, mock_configured
+    ):
+        # TASK I (expected behavior change): previously a 5-page scan
+        # was sent to Azure F0, which read only 2 pages and still
+        # counted as success, silently dropping pages 3-5. Now Azure is
+        # skipped when it cannot read the whole document, and Tesseract
+        # (no page cap) reads all of it.
+        mock_ocr.return_value = (
+            "Full five page CV text. " * 10, OCRQuality.OK, 5
+        )
+        path = self._tmp_pdf(b"%PDF-1.4 scanned-like, short native text")
+
+        with patch("talent.utils.PdfReader") as mock_reader_cls:
+            mock_page = MagicMock()
+            mock_page.extract_text.return_value = ""
+            mock_reader = MagicMock()
+            mock_reader.pages = [mock_page] * 5
+            mock_reader_cls.return_value = mock_reader
+
+            text = extract_text_from_pdf(path)
+
+        mock_azure.assert_not_called()
+        mock_ocr.assert_called_once()
+        self.assertIn("Full five page CV text.", text)
 
     @patch.object(azure_extractor, "is_configured", return_value=True)
     @patch.object(azure_extractor, "extract_with_azure")

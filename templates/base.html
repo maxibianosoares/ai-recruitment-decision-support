@@ -91,6 +91,9 @@
       {% if request.user.is_authenticated %}
       <span class="small text-muted d-none d-md-inline"><i class="bi bi-person-circle me-1"></i>{{ request.user.username }}</span>
       <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-sm"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
+      {% elif request.resolver_match.url_name != 'login' %}
+      {# TASK K (2026-10-06): visitors who are not logged in had no way to reach the login page from the navbar. The button is hidden on the login page itself, where it would just link to the current page. #}
+      <a href="{% url 'login' %}" class="btn btn-tl btn-sm" id="navbar-login-btn"><i class="bi bi-box-arrow-in-right me-1"></i>Login</a>
       {% endif %}
     </div>
   </div>

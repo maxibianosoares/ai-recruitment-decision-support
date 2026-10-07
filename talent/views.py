@@ -1,6 +1,8 @@
-from time import perf_counter
+import hashlib
+import time
 
 from django.conf import settings
+from django.db import IntegrityError, OperationalError, transaction
 from django.core.mail import send_mail
 from django.shortcuts import render
 from django.contrib import messages
@@ -27,10 +29,14 @@ from .models import (
     Job,
     Candidate,
     Application,
+    ApplicationDocument,
     HumanDecision
 )
-from .utils import extract_text_from_pdf, CVExtractionError
-from .document_quality import check_document_quality
+from . import statuses as S
+from .notifications import application_detail_url
+from ai_engine.services.document_extraction.structure import (
+    check_pdf_structure,
+)
 
 MAX_CV_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
 
@@ -68,12 +74,14 @@ def _has_recruitment_permission(user):
         code="recruitment_manage"
     ).exists()
 
+
 # Roles allowed to record the FINAL Human Review decision
 # (Approve / Reject). Same two roles that already have user-management
 # rights (see accounts/management/commands/seed_roles.py). Django
 # superusers are also allowed. HR Officer / Reviewer / Interviewer can
 # still view the application, but cannot record the final decision.
 FINAL_DECISION_ROLES = ("Super Admin", "Administrator")
+
 
 def _can_make_final_decision(user):
 
@@ -86,6 +94,7 @@ def _can_make_final_decision(user):
     role = getattr(user, "role", None)
 
     return bool(role and role.name in FINAL_DECISION_ROLES)
+
 
 def _send_candidate_outcome_email(application, agreed_with_ai=True):
     """
@@ -152,6 +161,10 @@ def _send_candidate_outcome_email(application, agreed_with_ai=True):
 
     body_lines += [
         "",
+        "View the full AI recommendation details (log in with the "
+        "account you applied with):",
+        application_detail_url(application),
+        "",
         "Thank you for your interest.",
     ]
 
@@ -162,6 +175,7 @@ def _send_candidate_outcome_email(application, agreed_with_ai=True):
         recipient_list=[candidate_email],
         fail_silently=False,
     )
+
 
 @login_required
 def candidate_detail(request, application_id):
@@ -198,7 +212,7 @@ def candidate_detail(request, application_id):
                 "Only an administrator can record the final review decision."
             )
 
-                # LOCKED FINAL DECISION (2026-10-05): once an administrator has
+        # LOCKED FINAL DECISION (2026-10-05): once an administrator has
         # recorded a Human Review decision for this application, it is
         # final and can no longer be changed from this page -- the
         # "Change the decision" buttons are no longer rendered once a
@@ -387,19 +401,36 @@ def job_detail(request, job_id):
         context
     )
 
+class _AlreadyApplied(Exception):
+    """Raised inside apply_job's transaction to abort it cleanly."""
+
+
 @login_required
 def apply_job(request, job_id):
 
     job = get_object_or_404(Job, id=job_id)
 
     existing_candidate = getattr(request.user, "candidate_profile", None)
-        # Block re-applying to the same job -- this guard was accidentally
-    # dropped from a previous merge (views.py lost it while the Tetum
-    # job-description work was combined in), leaving nothing but a raw
-    # DB IntegrityError protecting against duplicate Application rows.
-    if existing_candidate is not None and Application.objects.filter(
-        candidate=existing_candidate, job=job
-    ).exists():
+
+    existing_application = None
+
+    if existing_candidate is not None:
+        existing_application = Application.objects.filter(
+            candidate=existing_candidate, job=job
+        ).first()
+
+    # Block re-applying to the same job -- this guard was accidentally
+    # dropped from a previous merge, leaving nothing but a raw DB
+    # IntegrityError protecting against duplicate Application rows.
+    # TASK I: the one exception is an application that stopped before
+    # AI screening because its CV could not be read
+    # (DOCUMENT_INVALID / EXTRACTION_FAILED): the candidate may upload
+    # a replacement for the same job (see existing_application below).
+    if (
+        existing_application is not None
+        and existing_application.ai_status
+        not in S.RETRYABLE_DOCUMENT_STATUSES
+    ):
 
         messages.warning(
             request,
@@ -407,6 +438,17 @@ def apply_job(request, job_id):
         )
 
         return redirect("job_detail", job_id=job.id)
+
+    if (
+        existing_application is not None
+        and request.method != "POST"
+    ):
+        messages.info(
+            request,
+            "Your previous CV for this position could not be read: "
+            f"{existing_application.ai_feedback or 'unknown reason'} "
+            "Please upload a replacement below."
+        )
 
     if existing_candidate is not None and existing_candidate.full_name:
         applicant_full_name = existing_candidate.full_name
@@ -481,136 +523,151 @@ def apply_job(request, job_id):
             )
 
         # =====================================
-        # CREATE OR REUSE CANDIDATE
-        # (a logged-in user's Candidate profile is reused across
-        # applications to different jobs, rather than creating a
-        # fresh row each time -- this is what lets the existing
-        # unique_together=("candidate","job") constraint on
-        # Application actually prevent duplicate applications by
-        # the same real person, and what "My Applications" queries
-        # by)
+        # QUEUE FOR BACKGROUND EXTRACTION + AI SCREENING
+        # =====================================
+        # TASK I (2026-10-06): the web request does NO text extraction
+        # or OCR any more. Everything heavy (reading the document,
+        # OCR for scans, completeness checks, then the AI pipeline)
+        # runs in the worker -- see process_pending_applications.
+        # Here we only (1) reject a structurally unusable file
+        # instantly, before anything is stored, and (2) save the
+        # application plus the PDF bytes (the worker is a separate
+        # container and cannot read this server's disk) and queue it.
+        #
+        # This also fixes a latent bug in the previous flow: it wrote
+        # the Candidate first and, for an unreadable document, ran
+        # candidate.delete() to roll back -- for an EXISTING candidate
+        # profile that deleted the profile and, by CASCADE, all of
+        # their other applications. Nothing is written until the file
+        # has passed the structural check.
         # =====================================
 
-        if existing_candidate is not None:
+        pdf_bytes = cv_file.read()
+        cv_file.seek(0)
 
-            candidate = existing_candidate
-            candidate.full_name = full_name
-            candidate.email = email
-            candidate.cv_file = cv_file
-            candidate.save()
+        structure = check_pdf_structure(pdf_bytes)
 
-        else:
+        if not structure.ok:
 
-            candidate = Candidate.objects.create(
-                user=request.user,
-                full_name=full_name,
-                email=email,
-                cv_file=cv_file
-            )
-
-        # =====================================
-        # DOCUMENT/CV QUALITY GATE (FINAL FINISHING SESSION, 2026-10-04)
-        # =====================================
-        # Runs BEFORE any Application row is created and BEFORE any
-        # expensive AI call -- a document classified invalid here
-        # never reaches candidate profiling / Rule Engine / Skill
-        # Matching / RAG / fused reasoning at all. This reuses the
-        # EXISTING extraction/OCR pipeline unchanged (see
-        # talent/document_quality.py) -- no OCR rewrite, no new
-        # extraction logic, just an explicit, loggable decision
-        # object instead of a bare try/except around
-        # extract_text_from_pdf().
-        # =====================================
-
-        pdf_path = candidate.cv_file.path
-
-        _extract_start = perf_counter()
-
-        quality = check_document_quality(pdf_path)
-
-        print(
-            "[APPLY-JOB-TIMING] "
-            f"text_extraction={perf_counter() - _extract_start:.2f}s"
-        )
-
-        print(
-            "[DOCUMENT-QUALITY] "
-            f"valid={quality.valid} "
-            f"extraction_method={quality.extraction_method} "
-            f"ocr_used={quality.ocr_used} "
-            f"extracted_text_length={quality.extracted_text_length}"
-        )
-
-        if not quality.valid:
-            # DOCUMENT_INVALID: no Application row is created (same
-            # behavior as before this change -- the candidate record
-            # created above is rolled back), so the expensive AI
-            # pipeline is never queued for an unreadable document.
-            # Candidate can immediately resubmit with a better file.
-            candidate.cv_file.delete(save=False)
-            candidate.delete()
-
-            messages.error(request, quality.reason)
+            messages.error(request, structure.reason)
 
             return redirect(
                 "apply_job",
                 job_id=job.id
             )
 
-        candidate.extracted_text = quality.extracted_text
+        try:
+            with transaction.atomic():
 
-        candidate.save()
+                # Re-check under a row lock: two submits at the same
+                # time (double click, two tabs) must not both queue
+                # the same application, and an application that is
+                # already queued/in progress/finished must never be
+                # replaced by a late second request.
+                if existing_candidate is not None:
+                    existing_application = (
+                        Application.objects
+                        .select_for_update()
+                        .filter(candidate=existing_candidate, job=job)
+                        .first()
+                    )
+                    if (
+                        existing_application is not None
+                        and existing_application.ai_status
+                        not in S.RETRYABLE_DOCUMENT_STATUSES
+                    ):
+                        raise _AlreadyApplied()
 
-        if quality.ocr_used and quality.quality_notice:
-            # Text was recovered via OCR fallback, but at LOW
-            # confidence, or with an extraction warning (see
-            # ai_engine/services/ocr_fallback.py /
-            # document_extraction/router.py). Surface this to the
-            # human now, at submission time -- don't wait for a
-            # recruiter to notice sparse/garbled fields later on
-            # Candidate Detail.
+                # A logged-in user's Candidate profile is reused across
+                # applications to different jobs (this is what lets the
+                # unique_together=("candidate","job") constraint on
+                # Application actually prevent duplicate applications by
+                # the same real person, and what "My Applications"
+                # queries by).
+                if existing_candidate is not None:
+
+                    candidate = existing_candidate
+                    candidate.full_name = full_name
+                    candidate.email = email
+                    candidate.cv_file = cv_file
+                    candidate.save()
+
+                else:
+
+                    candidate = Candidate.objects.create(
+                        user=request.user,
+                        full_name=full_name,
+                        email=email,
+                        cv_file=cv_file
+                    )
+
+                if existing_application is not None:
+
+                    # Re-upload after DOCUMENT_INVALID /
+                    # EXTRACTION_FAILED: reuse the same row (unique per
+                    # candidate+job) and start it over.
+                    application = existing_application
+                    application.ai_status = S.QUEUED
+                    application.ai_feedback = ""
+                    application.ai_error = ""
+                    application.ai_processed_at = None
+                    application.extraction_report = {}
+                    application.save()
+
+                else:
+
+                    application = Application.objects.create(
+                        candidate=candidate,
+                        job=job,
+                        ai_status=S.QUEUED
+                    )
+
+                ApplicationDocument.objects.update_or_create(
+                    application=application,
+                    defaults={
+                        "pdf_bytes": pdf_bytes,
+                        "original_filename": cv_file.name[:255],
+                        "sha256": hashlib.sha256(pdf_bytes).hexdigest(),
+                    }
+                )
+
+        except (_AlreadyApplied, IntegrityError, OperationalError) as error:
+            # IntegrityError: a concurrent request created the same
+            # (candidate, job) application first.
+            #
+            # OperationalError ("database is locked") is what SQLite
+            # (local development) raises for the SECOND of two
+            # simultaneous submits, because it has no row locks.
+            # Production Postgres serialises them instead. It is only
+            # treated as a duplicate when the other request's
+            # application really exists a moment later; any other
+            # database error is a real fault and is raised as before.
+            if isinstance(error, OperationalError):
+                already_created = False
+                for _ in range(10):
+                    if Application.objects.filter(
+                        candidate__user=request.user, job=job
+                    ).exists():
+                        already_created = True
+                        break
+                    time.sleep(0.3)
+                if not already_created:
+                    raise
+
             messages.warning(
                 request,
-                "Your CV appears to be a scanned document, and text "
-                "extraction quality was low. Some information may not "
-                "have been read correctly. Consider re-uploading a "
-                "clearer scan or a digitally-generated PDF if your "
-                "application results look incomplete."
+                "You have already applied to this position."
             )
-
-        # =====================================
-        # CREATE APPLICATION -- QUEUED for background AI processing
-        # =====================================
-        # ASYNC APPLY JOB (FINAL FINISHING SESSION, 2026-10-04): the
-        # expensive AI pipeline (lang-detect/translate, candidate
-        # profile, rule engine, skill matching, RAG, fused reasoning,
-        # db save -- measured 89-211s across real local profiling,
-        # see chat report) NO LONGER runs inside this HTTP request.
-        # The candidate gets an immediate response; a separate
-        # background worker (management command
-        # process_pending_applications, see
-        # ai_engine/management/commands/) picks up QUEUED applications
-        # and runs the SAME recruitment_pipeline() unchanged. This is
-        # a durable, DB-backed queue (ai_status is a plain CharField,
-        # no migration needed for new string values) -- not an
-        # in-memory thread, so it survives a web-process restart.
-        # =====================================
-
-        application = Application.objects.create(
-            candidate=candidate,
-            job=job
-        )
-
-        application.ai_status = "QUEUED"
-
-        application.save()
+            return redirect("job_detail", job_id=job.id)
 
         messages.success(
             request,
-            "Application submitted successfully. Your CV passed "
-            "quality checks and has been queued for AI-assisted "
-            "screening -- you can check back on your application "
-            "status, you do not need to keep this page open."
+            "Application submitted successfully. Your CV has been "
+            "queued: it will be read and then screened by AI in the "
+            "background (a scanned CV can take a few minutes). You do "
+            "not need to keep this page open -- check My Applications "
+            "for progress. If your CV cannot be read, you will be told "
+            "and can upload a clearer one."
         )
 
         return redirect(
@@ -627,6 +684,7 @@ def apply_job(request, job_id):
             "applicant_email": applicant_email
         }
     )
+
 
 @login_required
 def candidate_cv_text(request, candidate_id):
@@ -716,6 +774,7 @@ def ranking_jobs(request):
         }
     )
 
+
 @login_required
 @permission_required("recruitment_manage")
 def ranking_by_job(
@@ -750,6 +809,7 @@ def ranking_by_job(
         }
     )
 
+
 @login_required
 @permission_required("recruitment_manage")
 def test_semantic_matching(
@@ -759,6 +819,7 @@ def test_semantic_matching(
     candidate = Candidate.objects.get(
         id=15
     )
+
 
     job = Job.objects.first()
 
@@ -857,6 +918,7 @@ def home(request):
         "talent/home.html"
     )
 
+
 @login_required
 def my_applications(request):
 
@@ -870,8 +932,25 @@ def my_applications(request):
         else Application.objects.none()
     )
 
+    applications = list(applications)
+
+    # Label each application with its live status so the candidate can
+    # watch it move QUEUED -> EXTRACTING -> EXTRACTED -> PROCESSING ->
+    # SUCCESS/FAILED, and refresh the page automatically while anything
+    # is still in progress.
+    waiting = (S.QUEUED,) + tuple(S.IN_FLIGHT_STATUSES)
+
+    for application in applications:
+        application.progress_label = S.DISPLAY.get(
+            application.ai_status, ""
+        )
+        application.in_progress = application.ai_status in waiting
+
     return render(
         request,
         "talent/my_applications.html",
-        {"applications": applications}
+        {
+            "applications": applications,
+            "any_in_progress": any(a.in_progress for a in applications),
+        }
     )

@@ -276,6 +276,19 @@ class Application(models.Model):
         blank=True
     )
 
+    # TASK I: ai_status now also carries EXTRACTING, EXTRACTED,
+    # DOCUMENT_INVALID and EXTRACTION_FAILED (plain strings, no
+    # choices= on the field, so no migration is needed for the values
+    # themselves). See talent/statuses.py for the full state machine.
+
+    # TASK I: what the document-extraction stage actually did for this
+    # application (per-page methods, failed/unreadable pages, DPI,
+    # timings, warnings). Filled by the worker; {} until then.
+    extraction_report = models.JSONField(
+        default=dict,
+        blank=True
+    )
+
     # =====================================================
     # APPLICATION STATUS
     # =====================================================
@@ -299,6 +312,56 @@ class Application(models.Model):
 
     def __str__(self):
         return f"{self.candidate.full_name} - {self.job.title}"
+
+
+class ApplicationDocument(models.Model):
+    """
+    TASK I: the uploaded CV PDF, carried to the background worker
+    through the database.
+
+    WHY THE DATABASE: the web service and the worker service are
+    separate Railway containers with separate filesystems (MEDIA_ROOT
+    is local disk), so the worker cannot open the file the web process
+    saved. The bytes travel in this row instead.
+
+    WHY A SEPARATE TABLE (not a field on Application): Application is
+    loaded by every list/ranking query; a BinaryField there would drag
+    up to 5MB per row into each of them.
+
+    Lifetime: created by apply_job(), kept while the application is
+    in flight (so a worker crash can be retried from the start), and
+    deleted once the application reaches a terminal state (SUCCESS,
+    FAILED, DOCUMENT_INVALID, EXTRACTION_FAILED). Applications queued
+    before this table existed simply have no row -- the worker treats
+    that as "text already extracted" (legacy path).
+    """
+
+    application = models.OneToOneField(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="pending_document"
+    )
+
+    pdf_bytes = models.BinaryField()
+
+    original_filename = models.CharField(
+        max_length=255,
+        blank=True,
+        default=""
+    )
+
+    sha256 = models.CharField(
+        max_length=64,
+        blank=True,
+        default=""
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    def __str__(self):
+        return f"Document for application {self.application_id}"
 
 
 class HumanDecision(models.Model):
