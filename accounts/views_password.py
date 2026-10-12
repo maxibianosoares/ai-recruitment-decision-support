@@ -31,6 +31,8 @@ from django.contrib.auth import views as auth_views
 from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
 from django.urls import reverse_lazy
 
+from .email_context import email_context
+
 logger = logging.getLogger(__name__)
 
 _INPUT_CLASS = "form-control"
@@ -53,7 +55,8 @@ class ForgotPasswordForm(PasswordResetForm):
 
     def send_mail(self, *args, **kwargs):
         try:
-            super().send_mail(*args, **kwargs)
+            with email_context("password_reset"):
+                super().send_mail(*args, **kwargs)
         except Exception:
             # Django's own send_mail already logs and swallows a failed
             # send(); this is a second safety net for everything around

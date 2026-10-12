@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 
+from .email_context import email_context
 from .forms import RegisterForm
 from .models import Role
 from .tokens import email_verification_token
@@ -27,19 +28,21 @@ def _send_verification_email(request, user):
 
     verify_url = request.build_absolute_uri(verify_path)
 
-    send_mail(
-        subject="Verify your email -- AI Civil Service Recruitment",
-        message=(
-            f"Hi {user.first_name or user.username},\n\n"
-            f"Please verify your email address by opening this link:\n"
-            f"{verify_url}\n\n"
-            f"If you did not create this account, you can ignore this "
-            f"email."
-        ),
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-        recipient_list=[user.email],
-        fail_silently=False
-    )
+    with email_context("registration"):
+        send_mail(
+            subject="Verify your email -- AI Civil Service Recruitment",
+            message=(
+                f"Hi {user.first_name or user.username},\n\n"
+                f"Please verify your email address by opening this "
+                f"link:\n"
+                f"{verify_url}\n\n"
+                f"If you did not create this account, you can ignore "
+                f"this email."
+            ),
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            recipient_list=[user.email],
+            fail_silently=False
+        )
 
 
 def register_view(request):

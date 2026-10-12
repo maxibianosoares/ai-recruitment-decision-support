@@ -289,3 +289,67 @@ class RolePermission(models.Model):
     def __str__(self):
 
         return self.role
+
+
+class EmailLog(models.Model):
+    """
+    TASK M: one row per outgoing email, so delivery can be checked in
+    the database / Django Admin instead of only in Railway logs.
+
+    Stores METADATA ONLY. The email body is deliberately never saved:
+    password-reset and verification emails contain secret links.
+
+    `sent` means the email provider (Brevo) ACCEPTED the message. It
+    does not prove the message reached the recipient's inbox.
+
+    `related_application_id` is a plain integer, not a ForeignKey, so
+    the accounts app does not depend on the talent app (no circular
+    migration dependency) and deleting an application never touches
+    the log.
+    """
+
+    class Kind(models.TextChoices):
+        REGISTRATION = "registration", "Registration (verify email)"
+        PASSWORD_RESET = "password_reset", "Password reset"
+        AI_SCREENING_RESULT = (
+            "ai_screening_result", "Application: AI screening result"
+        )
+        FINAL_DECISION = (
+            "final_decision", "Application: final human decision"
+        )
+        DOCUMENT_ISSUE = (
+            "document_issue", "Application: CV could not be read"
+        )
+        OTHER = "other", "Other"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+
+    kind = models.CharField(
+        max_length=32, choices=Kind.choices, default=Kind.OTHER
+    )
+    recipient = models.CharField(max_length=254)
+    subject = models.CharField(max_length=255, blank=True)
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING
+    )
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error = models.TextField(blank=True)
+    provider_message_id = models.CharField(max_length=255, blank=True)
+    related_application_id = models.PositiveIntegerField(
+        null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["status", "-created_at"]),
+            models.Index(fields=["kind", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.status}] {self.kind} -> {self.recipient}"

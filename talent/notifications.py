@@ -24,6 +24,8 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.urls import reverse
 
+from accounts.email_context import email_context
+
 
 def application_detail_url(application):
     """
@@ -93,13 +95,14 @@ def send_ai_screening_completed_email(application):
         "Thank you for your interest.",
     ]
 
-    send_mail(
-        subject=subject,
-        message="\n".join(body_lines),
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-        recipient_list=[candidate_email],
-        fail_silently=False,
-    )
+    with email_context("ai_screening_result", related_application_id=application.id):
+        send_mail(
+            subject=subject,
+            message="\n".join(body_lines),
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            recipient_list=[candidate_email],
+            fail_silently=False,
+        )
 
 
 def send_document_issue_email(application):
@@ -152,10 +155,11 @@ def send_document_issue_email(application):
         "Thank you for your interest.",
     ]
 
-    send_mail(
-        subject=subject,
-        message="\n".join(body_lines),
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-        recipient_list=[candidate_email],
-        fail_silently=False,
-    )
+    with email_context("document_issue", related_application_id=application.id):
+        send_mail(
+            subject=subject,
+            message="\n".join(body_lines),
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            recipient_list=[candidate_email],
+            fail_silently=False,
+        )

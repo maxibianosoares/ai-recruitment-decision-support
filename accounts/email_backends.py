@@ -40,6 +40,12 @@ TASK L (2026-10-12): transient-failure retry.
     message, the retry can deliver a duplicate. For the emails this
     system sends (verification, password reset, screening result) a
     rare duplicate is far better than a lost email.
+
+TASK M (2026-10-12): delivery log.
+    Every message handled by this backend is recorded in
+    accounts.EmailLog (pending -> sent / failed, attempts, error,
+    Brevo messageId). Metadata only -- never the body. See
+    accounts/email_context.py for how callers label the kind.
 """
 
 import logging
@@ -49,6 +55,9 @@ import requests
 
 from django.conf import settings
 from django.core.mail.backends.base import BaseEmailBackend
+from django.utils import timezone
+
+from .email_context import current_email_context
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +68,15 @@ BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email"
 # and every server-side (5xx) error. Everything else (4xx) is a
 # permanent problem with the request or the account.
 RETRYABLE_STATUS_CODES = frozenset({408, 429})
+
+
+class BrevoSendError(RuntimeError):
+    """RuntimeError (so existing handlers keep working) that also
+    remembers how many attempts were made, for the EmailLog."""
+
+    def __init__(self, message, attempts=0):
+        super().__init__(message)
+        self.attempts = attempts
 
 
 def _setting(name, default):
@@ -92,13 +110,64 @@ def _brevo_detail(error):
         return f" Brevo response: {response.text[:200]}"
 
 
+def _provider_message_id(response):
+    try:
+        return str(response.json().get("messageId", ""))[:255]
+    except (ValueError, AttributeError):
+        return ""
+
+
+# --- TASK M: EmailLog bookkeeping -----------------------------------
+# Logging must NEVER be the reason an email is not sent, so every
+# database write below is wrapped: if the log cannot be written, the
+# problem is logged and sending carries on exactly as before.
+
+def _log_start(message):
+    try:
+        from .models import EmailLog
+
+        ctx = current_email_context()
+        kind = ctx["kind"]
+        if kind not in EmailLog.Kind.values:
+            kind = EmailLog.Kind.OTHER
+        return EmailLog.objects.create(
+            kind=kind,
+            recipient=", ".join(message.to)[:254],
+            subject=(message.subject or "")[:255],
+            related_application_id=ctx["related_application_id"],
+        )
+    except Exception:
+        logger.exception("EmailLog: could not create log row")
+        return None
+
+
+def _log_finish(entry, *, ok, attempts, error="", provider_id=""):
+    if entry is None:
+        return
+    try:
+        from .models import EmailLog
+
+        entry.attempts = attempts
+        if ok:
+            entry.status = EmailLog.Status.SENT
+            entry.sent_at = timezone.now()
+            entry.provider_message_id = provider_id
+            entry.error = ""
+        else:
+            entry.status = EmailLog.Status.FAILED
+            entry.error = error[:2000]
+        entry.save()
+    except Exception:
+        logger.exception("EmailLog: could not update log row")
+
+
 class BrevoAPIEmailBackend(BaseEmailBackend):
 
     def _post_with_retry(self, message, api_key):
         """
-        Send one message. Returns normally on success; raises
-        RuntimeError once the failure is permanent or the attempts /
-        time budget are used up.
+        Send one message. Returns (attempts_made, provider_message_id)
+        on success; raises BrevoSendError (a RuntimeError) once the
+        failure is permanent or the attempts / time budget are used up.
         """
         max_attempts = max(1, int(_setting("BREVO_MAX_ATTEMPTS", 3)))
         backoff = float(_setting("BREVO_RETRY_BACKOFF_SECONDS", 1.0))
@@ -143,7 +212,7 @@ class BrevoAPIEmailBackend(BaseEmailBackend):
                         "Brevo email sent on attempt %d/%d",
                         attempt, max_attempts,
                     )
-                return
+                return attempt, _provider_message_id(response)
 
             except requests.exceptions.RequestException as e:
 
@@ -172,10 +241,11 @@ class BrevoAPIEmailBackend(BaseEmailBackend):
                         time.sleep(delay)
 
         status = last_status if last_status is not None else "unknown"
-        raise RuntimeError(
+        raise BrevoSendError(
             f"Brevo email send failed (HTTP {status}) after "
             f"{attempts_made} attempt(s)."
-            f"{_brevo_detail(last_error)}"
+            f"{_brevo_detail(last_error)}",
+            attempts=attempts_made,
         ) from None
 
     def send_messages(self, email_messages):
@@ -186,24 +256,41 @@ class BrevoAPIEmailBackend(BaseEmailBackend):
         api_key = getattr(settings, "BREVO_API_KEY", "")
 
         if not api_key:
-            if not self.fail_silently:
-                raise RuntimeError(
-                    "BREVO_API_KEY is not set, but EMAIL_BACKEND is "
-                    "configured to use Brevo."
+            error = (
+                "BREVO_API_KEY is not set, but EMAIL_BACKEND is "
+                "configured to use Brevo."
+            )
+            for message in email_messages:
+                _log_finish(
+                    _log_start(message), ok=False, attempts=0, error=error
                 )
+            if not self.fail_silently:
+                raise RuntimeError(error)
             return 0
 
         sent_count = 0
 
         for message in email_messages:
 
+            entry = _log_start(message)
+
             try:
-                self._post_with_retry(message, api_key)
+                attempts, provider_id = self._post_with_retry(
+                    message, api_key
+                )
+                _log_finish(
+                    entry, ok=True, attempts=attempts,
+                    provider_id=provider_id,
+                )
                 sent_count += 1
 
             except RuntimeError as e:
 
                 logger.error("%s", e)
+                _log_finish(
+                    entry, ok=False,
+                    attempts=getattr(e, "attempts", 0), error=str(e),
+                )
 
                 if not self.fail_silently:
                     raise

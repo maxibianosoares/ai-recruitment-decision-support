@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
 from accounts.decorators import permission_required
+from accounts.email_context import email_context
 from .models import Job
 from django.core.paginator import Paginator
 from django.db.models import Q
@@ -168,13 +169,14 @@ def _send_candidate_outcome_email(application, agreed_with_ai=True):
         "Thank you for your interest.",
     ]
 
-    send_mail(
-        subject=subject,
-        message="\n".join(body_lines),
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-        recipient_list=[candidate_email],
-        fail_silently=False,
-    )
+    with email_context("final_decision", related_application_id=application.id):
+        send_mail(
+            subject=subject,
+            message="\n".join(body_lines),
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            recipient_list=[candidate_email],
+            fail_silently=False,
+        )
 
 
 @login_required
