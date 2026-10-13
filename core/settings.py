@@ -113,6 +113,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'accounts.middleware.UserTimezoneMiddleware'
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -184,7 +185,22 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# TASK N: the database always stores UTC (USE_TZ = True). TIME_ZONE is
+# only the FALLBACK used when a visitor's own timezone is unknown; each
+# request is switched to the visitor's browser timezone by
+# accounts.middleware.UserTimezoneMiddleware. Default: Timor-Leste.
+def _valid_time_zone(name):
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo(name)
+        return True
+    except Exception:
+        return False
+
+
+TIME_ZONE = os.environ.get("TIME_ZONE", "Asia/Dili")
+if not _valid_time_zone(TIME_ZONE):
+    TIME_ZONE = "UTC"  # host without a tz database: stay safe
 
 USE_I18N = True
 

@@ -1,4 +1,4 @@
-{% load static %}
+{% load static tz %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -169,7 +169,26 @@
 </div>
 <footer class="footer py-3 text-center small">
   AI Civil Service Recruitment & Decision Support Platform · Timor-Leste<br>
-  <span>AI supports evidence-grounded decisions. Final recruitment decisions remain with human officers.</span>
+   <span>AI supports evidence-grounded decisions. Final recruitment decisions remain with human officers.</span><br>
+ <span class="text-muted" id="tz-note">{% get_current_timezone as CURRENT_TZ %}Times shown in {{ CURRENT_TZ }}</span>
+ </footer>
+<script>
+/* TASK N: remember the browser's timezone so the server can show
+  dates/times in the viewer's own zone. Takes effect from the next
+  page load. */
+(function () {
+ try {
+   var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+   if (!tz) { return; }
+   var m = document.cookie.match(/(?:^|; )user_tz=([^;]*)/);
+   if (m && decodeURIComponent(m[1]) === tz) { return; }
+   document.cookie = "user_tz=" + encodeURIComponent(tz) +
+      "; path=/; max-age=31536000; SameSite=Lax" +
+      (location.protocol === "https:" ? "; Secure" : "");
+
+ } catch (e) { /* cookies blocked: fall back to the default zone */ }
+})();
+</script>
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 {% block javascript %}{% endblock %}
