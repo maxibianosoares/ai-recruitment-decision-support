@@ -61,7 +61,7 @@ def login_view(request):
                 )
 
             login(request, user)
-            return redirect('dashboard')
+            return redirect('job_list')
 
         return render(
             request,
