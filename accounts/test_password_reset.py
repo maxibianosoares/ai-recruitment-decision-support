@@ -156,7 +156,7 @@ class PasswordResetTests(TestCase):
         good = self.client.post(reverse("login"), {
             "email": "maria@example.com", "password": NEW_PASSWORD,
         })
-        self.assertRedirects(good, reverse("dashboard"))
+        self.assertRedirects(good, reverse("job_list"))
         self.assertIn("_auth_user_id", self.client.session)
 
     def test_reset_does_not_log_the_user_in(self):

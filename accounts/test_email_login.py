@@ -35,7 +35,7 @@ class EmailLoginTests(TestCase):
             "password": "Str0ngP@ssw0rd!",
         })
         self.assertIn("_auth_user_id", self.client.session)
-        self.assertRedirects(resp, reverse("dashboard"))
+        self.assertRedirects(resp, reverse("job_list"))
 
     def test_email_lookup_is_case_insensitive(self):
         resp = self.client.post(reverse("login"), {
