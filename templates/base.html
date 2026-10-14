@@ -119,7 +119,9 @@
       <div class="sidebar-label">Platform</div>
       <nav class="nav flex-column">
         <a href="/accounts/dashboard/" class="nav-link{% if url_name == 'dashboard' %} active{% endif %}"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a>
+        {% if can_use_ai_assistant %}
         <a href="{% url 'rag_chat' %}" class="nav-link{% if url_name == 'rag_chat' %} active{% endif %}"><i class="bi bi-robot me-2"></i>AI Assistant</a>
+        {% endif %}
       </nav>
       <div class="sidebar-label">Recruitment</div>
       <nav class="nav flex-column">

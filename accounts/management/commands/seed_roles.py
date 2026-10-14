@@ -39,6 +39,12 @@ USER_MANAGEMENT_ALLOWED_ROLES = [
     "Administrator",
 ]
 
+AI_ASSISTANT_PERMISSION_CODE = "ai_assistant_use"
+AI_ASSISTANT_ALLOWED_ROLES = [
+    "Super Admin",
+    "Administrator",
+]
+
 
 class Command(BaseCommand):
 
@@ -111,6 +117,22 @@ class Command(BaseCommand):
         ):
             for permission in user_mgmt_permissions:
                 role.permissions.add(permission)
+
+                ai_permission, _ = Permission.objects.get_or_create(
+            code=AI_ASSISTANT_PERMISSION_CODE,
+            defaults={
+                "name": "Use AI Assistant",
+                "description": (
+                    "Open the AI Assistant chat and send questions "
+                    "to it."
+                ),
+            }
+        )
+
+        for role in Role.objects.filter(
+            name__in=AI_ASSISTANT_ALLOWED_ROLES
+        ):
+            role.permissions.add(ai_permission)
 
         self.stdout.write(
 

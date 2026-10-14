@@ -43,5 +43,8 @@ def permissions(request):
         "can_manage_users": _has_permission(
             user, "user_view"
         ),
+        "can_use_ai_assistant": _has_permission(
+            user, "ai_assistant_use"
+        ),
         "PILOT_MODE": settings.PILOT_MODE,
     }

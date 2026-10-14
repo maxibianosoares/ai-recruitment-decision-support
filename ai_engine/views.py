@@ -3,7 +3,8 @@ import logging
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-from django.contrib.auth.decorators import login_required
+from accounts.decorators import permission_required
+AI_ASSISTANT_PERMISSION = "ai_assistant_use"
 
 from rag.rag_pipeline import rag_pipeline
 from django.shortcuts import render
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 MAX_QUESTION_LENGTH = 1000
 
 
-@login_required
+@permission_required(AI_ASSISTANT_PERMISSION)
 @require_POST
 def ask_rag(request):
     try:
@@ -63,7 +64,7 @@ def ask_rag(request):
             status=500
         )
 
-@login_required
+@permission_required(AI_ASSISTANT_PERMISSION)
 def rag_chat(request):
     return render(
         request,
