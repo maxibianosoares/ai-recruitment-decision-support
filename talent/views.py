@@ -328,8 +328,11 @@ def candidate_detail(request, application_id):
     context = {
         "application": application,
         "can_decide": is_staff and _can_make_final_decision(request.user),
+        # Audit Trail and Developer JSON are internal provenance data:
+        # visible to administrators only (same roles as final decision),
+        # never to candidates or other staff roles.
+        "can_view_audit": _can_make_final_decision(request.user),
     }
-
     return render(
         request,
         "talent/candidate_detail.html",
