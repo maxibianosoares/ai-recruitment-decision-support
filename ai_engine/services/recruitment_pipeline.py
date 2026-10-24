@@ -470,6 +470,39 @@ def recruitment_pipeline(application):
         t_rule_skill = perf_counter()
 
         # =====================================
+        # STEP 2.5 (candidate-document matching)
+        # Per-requirement status + evidence, built from data already in
+        # memory: the structured job profile, the unified candidate
+        # object and the Rule Engine matrix just computed (its semantic
+        # levels are reused -- no new embedding / LLM call, nothing is
+        # extracted again). Informational only: it does not touch the
+        # Rule Engine result, the score, the weights or the decision.
+        # Never blocks screening.
+        # =====================================
+
+        if unified_candidate:
+
+            try:
+
+                from talent.matching import match_requirements
+
+                unified_candidate["requirement_matching"] = match_requirements(
+                    job_profile,
+                    profile,
+                    unified_candidate,
+                    rule_result,
+                    list(application.supporting_documents.all()),
+                )
+
+            except Exception as matching_error:
+
+                logger.warning(
+                    "Requirement matching skipped (%s); screening "
+                    "continues unchanged.",
+                    type(matching_error).__name__
+                )
+
+        # =====================================
         # STEP 2.5 (Phase 21, research, gated by NEW_CANDIDATE_RAG)
         # Candidate-Specific Legal RAG
         #

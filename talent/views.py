@@ -336,6 +336,7 @@ def candidate_detail(request, application_id):
         "is_staff_reviewer": is_staff,
         "supporting_documents": list(application.supporting_documents.all()),
         "document_review": (application.ai_rag_context or {}).get("document_review"),
+        "requirement_matching": (application.unified_candidate or {}).get("requirement_matching"),
     }
     return render(
         request,

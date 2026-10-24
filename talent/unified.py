@@ -286,6 +286,7 @@ def build_unified(application, profile=None):
                 elif new and old and _norm(new) != _norm(old):
                     conflicts.append({
                         "type": "certification_detail_mismatch",
+                        "certification": match["name"],
                         "field": f"certifications.{fld}",
                         "values": [
                             {"source": "earlier_document", "value": old},
