@@ -1,3 +1,20 @@
 {% extends 'base.html' %}
 {% block title %}Apply · {{ job.title }}{% endblock %}
-{% block content %}<div class="row justify-content-center"><div class="col-lg-8"><div class="page-header"><div class="page-kicker">Application</div><h1 class="fw-bold">Apply for {{ job.title }}</h1><p class="text-muted">Review your details below and upload your CV in PDF format.</p></div><div class="page-card p-4"><form method="POST" enctype="multipart/form-data">{% csrf_token %}<div class="row g-3"><div class="col-md-6"><div class="text-muted small">Full Name</div><div class="fw-semibold">{{ applicant_full_name }}</div></div><div class="col-md-6"><div class="text-muted small">Email</div><div class="fw-semibold">{{ applicant_email }}</div></div><div class="col-12"><div class="form-text mb-3">This is the name and email on your account. To change it, update your <a href="{% url 'profile' %}">profile</a> first.</div><label class="form-label fw-semibold">CV PDF</label><input type="file" name="cv_file" class="form-control" accept=".pdf,application/pdf" required><div class="form-text">Please upload a PDF CV.</div></div></div><button class="btn btn-tl mt-4">Submit Application</button></form></div></div></div>{% endblock %}
+{% block content %}<div class="row justify-content-center"><div class="col-lg-8"><div class="page-header"><div class="page-kicker">Application</div><h1 class="fw-bold">Apply for {{ job.title }}</h1><p class="text-muted">Review your details below and upload your CV in PDF format.</p></div><div class="page-card p-4"><form method="POST" enctype="multipart/form-data">{% csrf_token %}<div class="row g-3"><div class="col-md-6"><div class="text-muted small">Full Name</div><div class="fw-semibold">{{ applicant_full_name }}</div></div><div class="col-md-6"><div class="text-muted small">Email</div><div class="fw-semibold">{{ applicant_email }}</div></div><div class="col-12"><div class="form-text mb-3">This is the name and email on your account. To change it, update your <a href="{% url 'profile' %}">profile</a> first.</div><label class="form-label fw-semibold">CV PDF</label><input type="file" name="cv_file" class="form-control" accept=".pdf,application/pdf" required><div class="form-text">Please upload a PDF CV.</div></div>
+<div class="col-12"><hr class="my-1"><div class="fw-semibold">Supporting documents</div><div class="form-text mb-2">PDF only, up to 5MB each. The diploma is required; certificates are optional, and not having any is never counted against you. Documents are read in the background together with your CV.</div></div>
+<div class="col-12"><label class="form-label fw-semibold" for="education_file">Latest Education Certificate / Diploma <span class="text-danger">*</span></label><input type="file" id="education_file" name="education_file" class="form-control" accept=".pdf,application/pdf" required data-list="education_list"><ul class="small text-muted mb-0 mt-1" id="education_list"></ul></div>
+<div class="col-12"><label class="form-label fw-semibold" for="certificate_files">Certificates <span class="text-muted fw-normal">(optional)</span></label><input type="file" id="certificate_files" name="certificate_files" class="form-control" accept=".pdf,application/pdf" multiple data-list="certificate_list"><div class="form-text">Training, professional or skill certificates. You can select several files (up to 10).</div><ul class="small text-muted mb-0 mt-1" id="certificate_list"></ul></div>
+</div><button class="btn btn-tl mt-4">Submit Application</button></form></div></div></div>
+<script>
+document.querySelectorAll('input[type=file][data-list]').forEach(function (input) {
+  input.addEventListener('change', function () {
+    var list = document.getElementById(input.dataset.list);
+    list.innerHTML = '';
+    Array.prototype.forEach.call(input.files, function (f) {
+      var li = document.createElement('li');
+      li.textContent = f.name + ' (' + Math.max(1, Math.round(f.size / 1024)) + ' KB) \u2014 ready to upload';
+      list.appendChild(li);
+    });
+  });
+});
+</script>{% endblock %}

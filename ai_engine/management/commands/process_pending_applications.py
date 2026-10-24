@@ -90,6 +90,7 @@ from talent.notifications import (
 )
 from ai_engine.services.recruitment_pipeline import recruitment_pipeline
 from ai_engine.services.document_extraction import orchestrator
+from talent.documents import process_pending_supporting_documents
 
 
 class Command(BaseCommand):
@@ -343,6 +344,23 @@ class Command(BaseCommand):
 
             if not may_continue:
                 return
+
+            # Multi-document upload: read the optional supporting
+            # documents (ijazah, certificates, ...) once, now that the
+            # CV itself was readable. Never blocks screening: an
+            # unreadable supporting document is recorded as such and
+            # flagged for the human reviewer.
+            try:
+                process_pending_supporting_documents(application)
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"[WORKER] application {application.id}: "
+                        "supporting documents could not be processed "
+                        f"({type(e).__name__}); screening continues "
+                        "with the CV."
+                    )
+                )
 
             application.ai_status = S.PROCESSING
             application.save(update_fields=["ai_status"])

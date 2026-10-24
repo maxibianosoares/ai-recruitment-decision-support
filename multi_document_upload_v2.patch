@@ -1,0 +1,1977 @@
+diff --git a/ai_engine/management/commands/process_pending_applications.py b/ai_engine/management/commands/process_pending_applications.py
+index 07cdd6b..d0eebd3 100644
+--- a/ai_engine/management/commands/process_pending_applications.py
++++ b/ai_engine/management/commands/process_pending_applications.py
+@@ -90,6 +90,7 @@ from talent.notifications import (
+ )
+ from ai_engine.services.recruitment_pipeline import recruitment_pipeline
+ from ai_engine.services.document_extraction import orchestrator
++from talent.documents import process_pending_supporting_documents
+ 
+ 
+ class Command(BaseCommand):
+@@ -344,6 +345,23 @@ class Command(BaseCommand):
+             if not may_continue:
+                 return
+ 
++            # Multi-document upload: read the optional supporting
++            # documents (ijazah, certificates, ...) once, now that the
++            # CV itself was readable. Never blocks screening: an
++            # unreadable supporting document is recorded as such and
++            # flagged for the human reviewer.
++            try:
++                process_pending_supporting_documents(application)
++            except Exception as e:
++                self.stdout.write(
++                    self.style.WARNING(
++                        f"[WORKER] application {application.id}: "
++                        "supporting documents could not be processed "
++                        f"({type(e).__name__}); screening continues "
++                        "with the CV."
++                    )
++                )
++
+             application.ai_status = S.PROCESSING
+             application.save(update_fields=["ai_status"])
+ 
+diff --git a/ai_engine/services/recruitment_pipeline.py b/ai_engine/services/recruitment_pipeline.py
+index c8ce106..4279cb7 100644
+--- a/ai_engine/services/recruitment_pipeline.py
++++ b/ai_engine/services/recruitment_pipeline.py
+@@ -400,6 +400,46 @@ def recruitment_pipeline(application):
+ 
+         t_profile = perf_counter()
+ 
++        # =====================================
++        # STEP 1.5 (multi-document upload)
++        # Merge the supporting documents already read by the worker
++        # into one unified candidate object, and give the rule engine
++        # the SAME profile shape it always got (only certifications and
++        # a missing education level are filled from documents). Pure
++        # Python, no LLM call, nothing is read again. An application
++        # with no supporting documents gets its profile back unchanged.
++        # Never blocks screening: on any error the CV profile is used
++        # exactly as before. The shared/cached `profile` object is not
++        # modified (enrich_profile works on a copy).
++        # =====================================
++
++        unified_candidate = {}
++
++        document_review = None
++
++        try:
++
++            from talent.unified import (
++                build_unified, enrich_profile, review_summary
++            )
++
++            unified_candidate = build_unified(application, profile)
++
++            profile = enrich_profile(profile, unified_candidate)
++
++            if application.supporting_documents.exists():
++                document_review = review_summary(unified_candidate)
++
++        except Exception as merge_error:
++
++            unified_candidate = {}
++
++            logger.warning(
++                "Unified candidate merge skipped (%s); screening "
++                "continues with the CV profile.",
++                type(merge_error).__name__
++            )
++
+         # =====================================
+         # STEP 2
+         # Deterministic Parallel Analysis
+@@ -558,6 +598,8 @@ def recruitment_pipeline(application):
+ 
+         application.ai_profile = profile
+ 
++        application.unified_candidate = unified_candidate
++
+         application.ai_job_profile = job_profile
+ 
+         application.ai_rule_result = rule_result
+@@ -591,6 +633,10 @@ def recruitment_pipeline(application):
+                 if candidate_legal_evidence else {}
+             ),
+             "language_detection": language_result,
++            **(
++                {"document_review": document_review}
++                if document_review else {}
++            ),
+             **(
+                 {
+                     "translation": {
+diff --git a/talent/admin.py b/talent/admin.py
+index 34e2767..cec2ea5 100644
+--- a/talent/admin.py
++++ b/talent/admin.py
+@@ -4,6 +4,7 @@ from .models import (
+     Job,
+     Candidate,
+     Application,
++    ApplicationSupportingDocument,
+     HumanDecision
+ )
+ 
+@@ -11,4 +12,5 @@ admin.site.register(Skill)
+ admin.site.register(Job)
+ admin.site.register(Candidate)
+ admin.site.register(Application)
+-admin.site.register(HumanDecision)
+\ No newline at end of file
++admin.site.register(HumanDecision)
++admin.site.register(ApplicationSupportingDocument)
+diff --git a/talent/documents.py b/talent/documents.py
+new file mode 100644
+index 0000000..baae8b2
+--- /dev/null
++++ b/talent/documents.py
+@@ -0,0 +1,586 @@
++"""
++Optional supporting documents for an application (multi-document upload).
++
++Three stages, matching how the CV already flows through the system:
++
++  1. WEB REQUEST (cheap, no extraction):  validate_uploads() checks each
++     file (PDF, size, header, structure) and store_supporting_documents()
++     keeps the bytes in the database -- the worker is a separate
++     container and cannot read the web server's disk.
++  2. WORKER (after the CV was read):  process_pending_supporting_documents()
++     reads each pending document ONCE with the existing document
++     extraction orchestrator (native text, OCR only where needed), parses a
++     few structured fields with deterministic rules -- NO extra LLM call --
++     keeps the text, parsed fields and status, and releases the bytes.
++  3. PIPELINE:  talent/unified.py merges the stored results; nothing is
++     read again.
++
++Nothing here invents information: a field the rules cannot find stays
++None / absent, and a document that yields nothing is still recorded with
++a note.  Document content is never written to the log.
++"""
++
++import hashlib
++import logging
++import os
++import re
++import tempfile
++import unicodedata
++
++from pypdf import PdfReader
++
++from ai_engine.services.document_extraction.structure import (
++    check_pdf_structure,
++)
++
++from .models import ApplicationSupportingDocument
++
++logger = logging.getLogger(__name__)
++
++MAX_DOC_FILE_SIZE_BYTES = 5 * 1024 * 1024   # same limit as the CV upload
++MAX_SUPPORTING_TOTAL_BYTES = 20 * 1024 * 1024
++MAX_CERTIFICATES = 10
++MAX_SUPPORTING = 5
++
++NOTICE_PREFIXES = ("[OCR NOTICE:", "[EXTRACTION NOTICE:")
++
++T = ApplicationSupportingDocument
++
++
++# ---------------------------------------------------------------------
++# Stage 1 -- web request
++# ---------------------------------------------------------------------
++
++def _safe_name(name):
++    name = os.path.basename(name or "document.pdf")
++    name = "".join(ch for ch in name if ch.isprintable())
++    return name[:200] or "document.pdf"
++
++
++def validate_uploads(education_file, certificate_files, supporting_files):
++    """
++    Validate every optional upload before anything is stored.
++
++    Returns (items, error).  error is a user-facing message (the whole
++    submission is then rejected, like an invalid CV) or None; items is a
++    list of {"doc_type", "name", "data", "sha256"} ready for
++    store_supporting_documents().  Identical files in one submission are
++    kept once.
++    """
++
++    if len(certificate_files) > MAX_CERTIFICATES:
++        return [], f"You can upload at most {MAX_CERTIFICATES} certificates."
++    if len(supporting_files) > MAX_SUPPORTING:
++        return [], (f"You can upload at most {MAX_SUPPORTING} other "
++                    f"supporting documents.")
++
++    wanted = []
++    if education_file:
++        wanted.append((T.TYPE_EDUCATION, education_file))
++    wanted += [(T.TYPE_CERTIFICATE, f) for f in certificate_files]
++    wanted += [(T.TYPE_SUPPORTING, f) for f in supporting_files]
++
++    items, seen, total = [], set(), 0
++
++    for doc_type, upload in wanted:
++        name = _safe_name(upload.name)
++
++        if not name.lower().endswith(".pdf"):
++            return [], f"'{name}': only PDF files are accepted."
++        if upload.size == 0:
++            return [], f"'{name}' is empty."
++        if upload.size > MAX_DOC_FILE_SIZE_BYTES:
++            return [], (f"'{name}' is too large. Please upload a PDF under "
++                        f"{MAX_DOC_FILE_SIZE_BYTES // (1024 * 1024)}MB.")
++
++        data = upload.read()
++        upload.seek(0)
++
++        structure = check_pdf_structure(data)
++        if not structure.ok:
++            return [], f"'{name}': {structure.reason}"
++
++        digest = hashlib.sha256(data).hexdigest()
++        if (doc_type, digest) in seen:
++            continue
++        seen.add((doc_type, digest))
++
++        total += len(data)
++        if total > MAX_SUPPORTING_TOTAL_BYTES:
++            return [], (f"The supporting documents together are larger than "
++                        f"{MAX_SUPPORTING_TOTAL_BYTES // (1024 * 1024)}MB.")
++
++        items.append({"doc_type": doc_type, "name": name,
++                      "data": data, "sha256": digest})
++
++    return items, None
++
++
++def store_supporting_documents(application, items):
++    """
++    Save the validated uploads for this application as pending.  For each
++    type that was uploaded again, the earlier documents of that type are
++    replaced (re-upload after a CV problem); types not uploaded are left
++    alone.  Returns the created rows.
++    """
++
++    for doc_type in {i["doc_type"] for i in items}:
++        application.supporting_documents.filter(doc_type=doc_type).delete()
++
++    return [
++        T.objects.create(
++            application=application,
++            doc_type=i["doc_type"],
++            pdf_bytes=i["data"],
++            original_name=i["name"],
++            sha256=i["sha256"],
++        )
++        for i in items
++    ]
++
++
++# ---------------------------------------------------------------------
++# Small text helpers
++# ---------------------------------------------------------------------
++
++def _norm(text):
++    """Lower-case, accent-stripped, whitespace-collapsed (comparison only)."""
++    text = unicodedata.normalize("NFKD", text or "")
++    text = "".join(c for c in text if not unicodedata.combining(c))
++    return re.sub(r"\s+", " ", text).strip().lower()
++
++
++def _lines(text):
++    out = []
++    for raw in (text or "").splitlines():
++        line = re.sub(r"\s+", " ", raw).strip()
++        if not line or line.startswith(NOTICE_PREFIXES):
++            continue
++        out.append(line)
++    return out
++
++
++def _clip(text, n=200):
++    text = (text or "").strip()
++    return text if len(text) <= n else text[: n - 1] + "…"
++
++
++MONTHS = (
++    "january|february|march|april|may|june|july|august|september|october|"
++    "november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|"
++    "janeiro|fevereiro|marco|maio|junho|julho|agosto|setembro|outubro|"
++    "novembro|dezembro|januari|februari|maret|mei|juni|juli|agustus|"
++    "oktober|desember|janeiru|fevereiru|marsu|maiu|junu|jullu|agostu|"
++    "setembru|outubru|novembru|dezembru"
++)
++
++DATE_RE = re.compile(
++    r"(?:\b\d{1,2}(?:st|nd|rd|th)?\s+(?:de\s+)?(?:" + MONTHS + r")\.?,?\s+(?:de\s+)?(?:19|20)\d{2}\b)"
++    r"|(?:\b(?:" + MONTHS + r")\.?\s+\d{1,2},?\s+(?:19|20)\d{2}\b)"
++    r"|(?:\b(?:" + MONTHS + r")\.?,?\s+(?:19|20)\d{2}\b)"
++    r"|(?:\b(?:19|20)\d{2}-\d{2}-\d{2}\b)"
++    r"|(?:\b\d{1,2}[/.-]\d{1,2}[/.-](?:19|20)\d{2}\b)"
++    r"|(?:\b(?:19|20)\d{2}\b)",
++    re.IGNORECASE,
++)
++
++YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
++
++ISSUE_KEYS = re.compile(
++    r"issued|date of issue|awarded on|completed on|graduat|conferred|"
++    r"tanggal terbit|tanggal lulus|diterbitkan|lulus|data de emiss|emitido em|"
++    r"concluido|data de conclus|dated|date\b|tanggal|data\b",
++    re.IGNORECASE,
++)
++
++EXPIRY_KEYS = re.compile(
++    r"valid until|valid through|valid thru|expires?|expiry|expiration|"
++    r"berlaku sampai|berlaku hingga|masa berlaku|valido ate|validade|vence|"
++    r"valid to",
++    re.IGNORECASE,
++)
++
++NAME_LABEL_RE = re.compile(
++    r"(?:this is to certify that|certify that|awarded to|presented to|"
++    r"issued to|granted to|conferred (?:up)?on|diberikan kepada|"
++    r"dengan ini menyatakan bahwa|menyatakan bahwa|certificamos que|"
++    r"conferido a|name|nama|nome|naran)\s*[:\-]?\s*(.*)$",
++    re.IGNORECASE,
++)
++
++ORG_WORDS = (
++    "universit", "universid", "institut", "politekn", "polytechnic", "college", "academy",
++    "akademi", "academia", "escola", "school", "ministry", "ministerio",
++    "kementerian", "commission", "comissao", "komisi", "foundation",
++    "fundacao", "yayasan", "centre", "center", "centro", "pusat", "agency",
++    "agencia", "badan", "department", "departamento", "microsoft", "google",
++    "cisco", "oracle", "amazon", "comptia", "coursera", "udemy", "edx",
++    "linkedin", "ibm", "un ", "united nations", "koica", "undp", "unicef",
++)
++
++UNIVERSITY_WORDS = (
++    "universit", "universid", "institut", "politekn", "polytechnic", "college",
++    "akademi", "academy", "academia", "escola", "school", "sekolah tinggi",
++)
++
++CERT_TITLE_KEYS = (
++    "certificate", "certification", "certified", "sertifikat", "certificado",
++    "training", "course", "workshop", "pelatihan", "formacao", "kursus",
++    "bootcamp", "seminar", "diploma of completion", "attestation",
++)
++
++# Highest level first: the first match wins.
++LEVELS = [
++    ("doctorate", r"\b(ph\.?d|doctor(?:ate)?|doutoramento|doktor|s3)\b"),
++    ("master", r"\b(master|mestrado|magister|m\.?sc|mba|s2)\b"),
++    ("bachelor", r"\b(bachelor|b\.?sc|licenciatura|bacharelato|sarjana|"
++                 r"graus? universitari\w*|undergraduate degree|s1)\b"),
++    ("diploma", r"\b(diploma|associate degree|d[1-4]|diplom\w*|"
++                r"politeknik diploma)\b"),
++    ("secondary", r"\b(high school|senior high|secondary school|sma|smk|"
++                  r"ensino secundario|ensino medio|escola secundaria|"
++                  r"sekolah menengah atas)\b"),
++]
++
++LEVEL_LABELS = {
++    "doctorate": "Doctorate",
++    "master": "Master's degree",
++    "bachelor": "Bachelor's degree",
++    "diploma": "Diploma",
++    "secondary": "Secondary school",
++}
++
++
++def level_of(text):
++    """Map free text to one canonical education level, or None."""
++    t = _norm(text)
++    for level, pattern in LEVELS:
++        if re.search(pattern, t):
++            return level
++    return None
++
++
++def _match_dates(line):
++    return [m.group(0) for m in DATE_RE.finditer(line)]
++
++
++def _page_texts(pdf_path):
++    try:
++        reader = PdfReader(pdf_path)
++        return [(p.extract_text() or "") for p in reader.pages]
++    except Exception:
++        return []
++
++
++def _locate_page(pages, quote):
++    """1-based page whose native text contains the quote, else None."""
++    if not pages or not quote:
++        return None
++    needle = _norm(quote)
++    for i, page in enumerate(pages, start=1):
++        if needle and needle in _norm(page):
++            return i
++    return None
++
++
++def _evidence(field, quote, pages):
++    return {
++        "field": field,
++        "quote": _clip(quote),
++        "page": _locate_page(pages, quote),
++    }
++
++
++def _holder_name(lines, pages):
++    for i, line in enumerate(lines):
++        m = NAME_LABEL_RE.search(line)
++        if not m:
++            continue
++        value = m.group(1).strip(" :-")
++        quote = line
++        if not value and i + 1 < len(lines):
++            value = lines[i + 1].strip()
++            quote = f"{line} {value}"
++        if 2 <= len(value) <= 80 and not re.search(r"\d", value):
++            return value, _evidence("holder_name", quote, pages)
++    return None, None
++
++
++# ---------------------------------------------------------------------
++# Deterministic parsers (one per document type)
++# ---------------------------------------------------------------------
++
++def parse_education_certificate(text, pages=None):
++    lines = _lines(text)
++    evidence = []
++    notes = []
++
++    # The highest level named anywhere in the document wins; a bare
++    # "DIPLOMA" heading must not outrank "Bachelor of ..." on another line.
++    level = None
++    level_line = None
++    for name, _pattern in LEVELS:
++        for line in lines:
++            if level_of(line) == name:
++                level, level_line = name, line
++                break
++        if level:
++            break
++    if level_line:
++        evidence.append(_evidence("level", level_line, pages))
++
++    field = None
++    labelled = re.compile(
++        r"(?:field of study|major|study program(?:me)?|program studi|jurusan|"
++        r"programa|area de estudo|curso)\s*[:\-]\s*(.+)$", re.IGNORECASE)
++    inline = re.compile(
++        r"(?:bachelor|master|doctor\w*|licenciatura|mestrado|sarjana|"
++        r"magister|diploma|ph\.?d)\b[^\n]*\b(?:in|em|dalam)\s+"
++        r"([A-Za-z][A-Za-z&' \-]{2,60})", re.IGNORECASE)
++    for line in lines:
++        m = labelled.search(line) or inline.search(line)
++        if m:
++            candidate_field = m.group(1).strip(" .,;:-")
++            if 2 < len(candidate_field) <= 70:
++                field = candidate_field
++                evidence.append(_evidence("field", line, pages))
++                break
++
++    institution = None
++    for line in lines:
++        n = _norm(line)
++        if any(w in n for w in UNIVERSITY_WORDS) and len(line) <= 120:
++            institution = line.strip(" .,;:-")
++            evidence.append(_evidence("institution", line, pages))
++            break
++
++    year = None
++    for line in lines:
++        if ISSUE_KEYS.search(line):
++            dates = _match_dates(line)
++            if dates:
++                year = int(YEAR_RE.search(dates[0]).group(0))
++                evidence.append(_evidence("year", line, pages))
++                break
++    if year is None:
++        years = {int(y) for y in YEAR_RE.findall(text or "")}
++        if len(years) == 1:
++            year = years.pop()
++
++    holder, holder_ev = _holder_name(lines, pages)
++    if holder_ev:
++        evidence.append(holder_ev)
++
++    education = []
++    if level or institution:
++        education.append({
++            "level": level,
++            "level_label": LEVEL_LABELS.get(level),
++            "field": field,
++            "institution": institution,
++            "year": year,
++            "evidence": evidence,
++        })
++    else:
++        notes.append(
++            "No education level or institution could be recognised in this "
++            "document; it is listed but contributes no education data."
++        )
++
++    return {"education": education, "holder_name": holder, "notes": notes}
++
++
++def parse_certificate(text, pages=None):
++    lines = _lines(text)
++    evidence = []
++    notes = []
++
++    title = None
++    after = re.compile(
++        r"(?:has successfully completed|successfully completed|completed the|"
++        r"has completed|telah menyelesaikan|telah mengikuti|concluiu|"
++        r"completou)\s*[:\-]?\s*(.*)$", re.IGNORECASE)
++    for i, line in enumerate(lines):
++        m = after.search(line)
++        if m:
++            value = m.group(1).strip(" .,;:-")
++            if not value and i + 1 < len(lines):
++                value = lines[i + 1].strip(" .,;:-")
++            if 3 <= len(value) <= 120:
++                title = value
++                evidence.append(_evidence("name", line, pages))
++                break
++    if title is None:
++        for line in lines:
++            n = _norm(line)
++            if any(k in n for k in CERT_TITLE_KEYS) and 6 <= len(line) <= 120:
++                title = line.strip(" .,;:-")
++                evidence.append(_evidence("name", line, pages))
++                break
++
++    issuer = None
++    by = re.compile(
++        r"(?:issued by|awarded by|organi[sz]ed by|offered by|provided by|"
++        r"diterbitkan oleh|diselenggarakan oleh|emitido por|"
++        r"organizado por)\s*[:\-]?\s*(.+)$", re.IGNORECASE)
++    for line in lines:
++        m = by.search(line)
++        if m and 2 <= len(m.group(1).strip()) <= 120:
++            issuer = m.group(1).strip(" .,;:-")
++            evidence.append(_evidence("issuer", line, pages))
++            break
++    if issuer is None:
++        for line in lines:
++            if title and line.strip(" .,;:-") == title:
++                continue
++            n = _norm(line)
++            if any(w in n for w in ORG_WORDS) and len(line) <= 120:
++                issuer = line.strip(" .,;:-")
++                evidence.append(_evidence("issuer", line, pages))
++                break
++
++    issued = expiry = None
++    for line in lines:
++        dates = _match_dates(line)
++        if not dates:
++            continue
++        if EXPIRY_KEYS.search(line) and expiry is None:
++            expiry = dates[-1]
++            evidence.append(_evidence("expiry_date", line, pages))
++        elif ISSUE_KEYS.search(line) and issued is None:
++            issued = dates[0]
++            evidence.append(_evidence("issued_date", line, pages))
++
++    holder, holder_ev = _holder_name(lines, pages)
++    if holder_ev:
++        evidence.append(holder_ev)
++
++    certifications = []
++    if title:
++        certifications.append({
++            "name": title,
++            "issuer": issuer,
++            "issued_date": issued,
++            "expiry_date": expiry,
++            "evidence": evidence,
++        })
++    else:
++        notes.append(
++            "No certificate title could be recognised in this document; it "
++            "is listed but no certification is claimed from it."
++        )
++
++    return {"certifications": certifications, "holder_name": holder,
++            "notes": notes}
++
++
++def parse_supporting(text, pages=None):
++    lines = _lines(text)
++    title = lines[0][:120] if lines else None
++    holder, _ = _holder_name(lines, pages)
++    notes = [
++        "Supporting documents are stored for human review; no qualification "
++        "is extracted from them."
++    ]
++    return {"title": title, "holder_name": holder, "notes": notes}
++
++
++PARSERS = {
++    ApplicationSupportingDocument.TYPE_EDUCATION: parse_education_certificate,
++    ApplicationSupportingDocument.TYPE_CERTIFICATE: parse_certificate,
++    ApplicationSupportingDocument.TYPE_SUPPORTING: parse_supporting,
++}
++
++
++# ---------------------------------------------------------------------
++# Stage 2 -- worker
++# ---------------------------------------------------------------------
++
++PARSERS = {
++    T.TYPE_EDUCATION: parse_education_certificate,
++    T.TYPE_CERTIFICATE: parse_certificate,
++    T.TYPE_SUPPORTING: parse_supporting,
++}
++
++MSG_UNOPENABLE = (
++    "This document could not be opened. It may be corrupted or "
++    "password-protected."
++)
++MSG_NO_TEXT = (
++    "No readable text could be extracted from this document. Please "
++    "upload a clearer scan or a digitally-generated PDF."
++)
++MSG_UNEXPECTED = (
++    "This document could not be processed. Please upload a clearer or "
++    "digitally-generated PDF."
++)
++
++
++def process_pending_supporting_documents(application):
++    """
++    Read every pending supporting document of this application once.
++    Never raises: an unreadable document is recorded as failed (with a
++    reason a candidate can act on) and the others continue.  Returns the
++    processed rows.  Only ids, types and states are logged.
++    """
++
++    done = []
++
++    for doc in application.supporting_documents.filter(status=T.STATUS_PENDING):
++        try:
++            _process_one(doc)
++        except Exception:
++            logger.exception("Supporting document %s failed unexpectedly", doc.pk)
++            doc.status = T.STATUS_FAILED
++            doc.error_message = MSG_UNEXPECTED
++            doc.pdf_bytes = None
++            doc.save()
++        else:
++            logger.info("Supporting document %s (%s): %s",
++                        doc.pk, doc.doc_type, doc.status)
++        done.append(doc)
++
++    return done
++
++
++def _process_one(doc):
++    # Imported here, not at module level: the web request imports this
++    # module and must not pull in the OCR stack (see structure.py).
++    from ai_engine.services.document_extraction import orchestrator
++
++    fd, path = tempfile.mkstemp(suffix=".pdf")
++    try:
++        with os.fdopen(fd, "wb") as handle:
++            handle.write(bytes(doc.pdf_bytes))
++        outcome = orchestrator.extract_document(path)
++        pages = _page_texts(path)
++    finally:
++        try:
++            os.remove(path)
++        except OSError:
++            pass
++
++    report = outcome.report or {}
++    doc.page_count = report.get("pages_total") or len(pages)
++    doc.extraction_method = report.get("method", "") or ""
++    doc.extraction_seconds = report.get("seconds", 0) or 0
++    doc.pdf_bytes = None   # released: text and parsed fields are what we keep
++
++    if outcome.state == orchestrator.INVALID:
++        doc.status = T.STATUS_FAILED
++        doc.error_message = MSG_UNOPENABLE
++    elif outcome.state == orchestrator.INSUFFICIENT:
++        doc.status = T.STATUS_FAILED
++        doc.error_message = (
++            "Some pages of this document could not be processed."
++            if report.get("pages_failed") else MSG_NO_TEXT
++        )
++    else:
++        low = outcome.state == orchestrator.LOW_QUALITY
++        doc.extracted_text = outcome.text
++        doc.status = T.STATUS_LOW_QUALITY if low else T.STATUS_PROCESSED
++        # Page numbers are only reliable when the page has a native text
++        # layer; for OCR pages the quote is kept without a page.
++        doc.parsed = PARSERS[doc.doc_type](outcome.text, pages)
++
++    doc.save()
+diff --git a/talent/migrations/0012_supporting_documents_and_unified_candidate.py b/talent/migrations/0012_supporting_documents_and_unified_candidate.py
+new file mode 100644
+index 0000000..ff562f4
+--- /dev/null
++++ b/talent/migrations/0012_supporting_documents_and_unified_candidate.py
+@@ -0,0 +1,84 @@
++# Generated by Django 4.2.30 on 2026-10-23 07:48
++
++from django.db import migrations, models
++import django.db.models.deletion
++
++
++class Migration(migrations.Migration):
++
++    dependencies = [
++        ("talent", "0011_task_i_application_document"),
++    ]
++
++    operations = [
++        migrations.AddField(
++            model_name="application",
++            name="unified_candidate",
++            field=models.JSONField(blank=True, default=dict),
++        ),
++        migrations.CreateModel(
++            name="ApplicationSupportingDocument",
++            fields=[
++                (
++                    "id",
++                    models.BigAutoField(
++                        auto_created=True,
++                        primary_key=True,
++                        serialize=False,
++                        verbose_name="ID",
++                    ),
++                ),
++                (
++                    "doc_type",
++                    models.CharField(
++                        choices=[
++                            (
++                                "education_certificate",
++                                "Latest Education Certificate / Diploma",
++                            ),
++                            ("certificate", "Certificate"),
++                            ("supporting", "Other Supporting Document"),
++                        ],
++                        max_length=30,
++                    ),
++                ),
++                ("pdf_bytes", models.BinaryField(blank=True, null=True)),
++                ("original_name", models.CharField(max_length=255)),
++                ("sha256", models.CharField(db_index=True, max_length=64)),
++                (
++                    "status",
++                    models.CharField(
++                        choices=[
++                            ("pending", "Waiting to be read"),
++                            ("processed", "Processed"),
++                            ("low_quality", "Processed (low quality)"),
++                            ("failed", "Could not be read"),
++                        ],
++                        default="pending",
++                        max_length=20,
++                    ),
++                ),
++                ("error_message", models.TextField(blank=True, default="")),
++                ("extracted_text", models.TextField(blank=True, default="")),
++                ("parsed", models.JSONField(blank=True, default=dict)),
++                (
++                    "extraction_method",
++                    models.CharField(blank=True, default="", max_length=40),
++                ),
++                ("page_count", models.PositiveIntegerField(default=0)),
++                ("extraction_seconds", models.FloatField(default=0)),
++                ("created_at", models.DateTimeField(auto_now_add=True)),
++                (
++                    "application",
++                    models.ForeignKey(
++                        on_delete=django.db.models.deletion.CASCADE,
++                        related_name="supporting_documents",
++                        to="talent.application",
++                    ),
++                ),
++            ],
++            options={
++                "ordering": ["doc_type", "created_at"],
++            },
++        ),
++    ]
+diff --git a/talent/models.py b/talent/models.py
+index e5d16f7..4beac41 100644
+--- a/talent/models.py
++++ b/talent/models.py
+@@ -289,6 +289,15 @@ class Application(models.Model):
+         blank=True
+     )
+ 
++    # Multi-document upload: the single canonical candidate object for
++    # THIS application -- CV profile plus every supporting document,
++    # with sources, evidence and conflicts (see talent/unified.py).
++    # Filled by the pipeline; {} until then and for legacy rows.
++    unified_candidate = models.JSONField(
++        default=dict,
++        blank=True
++    )
++
+     # =====================================================
+     # APPLICATION STATUS
+     # =====================================================
+@@ -364,6 +373,115 @@ class ApplicationDocument(models.Model):
+         return f"Document for application {self.application_id}"
+ 
+ 
++class ApplicationSupportingDocument(models.Model):
++    """
++    An optional document uploaded together with the CV: the latest
++    education certificate / diploma, a certificate, or another
++    supporting document.
++
++    Same shape as ApplicationDocument (the CV): the web request only
++    stores the PDF bytes here, because the worker is a separate
++    container and cannot read the web server's disk. The worker reads
++    each pending document once (document_extraction.orchestrator),
++    parses it (talent/documents.py), keeps the TEXT, parsed fields and
++    status for human review, and releases the bytes.
++    """
++
++    TYPE_EDUCATION = "education_certificate"
++    TYPE_CERTIFICATE = "certificate"
++    TYPE_SUPPORTING = "supporting"
++
++    TYPE_CHOICES = [
++        (TYPE_EDUCATION, "Latest Education Certificate / Diploma"),
++        (TYPE_CERTIFICATE, "Certificate"),
++        (TYPE_SUPPORTING, "Other Supporting Document"),
++    ]
++
++    STATUS_PENDING = "pending"
++    STATUS_PROCESSED = "processed"
++    STATUS_LOW_QUALITY = "low_quality"
++    STATUS_FAILED = "failed"
++
++    STATUS_CHOICES = [
++        (STATUS_PENDING, "Waiting to be read"),
++        (STATUS_PROCESSED, "Processed"),
++        (STATUS_LOW_QUALITY, "Processed (low quality)"),
++        (STATUS_FAILED, "Could not be read"),
++    ]
++
++    application = models.ForeignKey(
++        Application,
++        on_delete=models.CASCADE,
++        related_name="supporting_documents"
++    )
++
++    doc_type = models.CharField(
++        max_length=30,
++        choices=TYPE_CHOICES
++    )
++
++    pdf_bytes = models.BinaryField(
++        null=True,
++        blank=True
++    )
++
++    original_name = models.CharField(
++        max_length=255
++    )
++
++    sha256 = models.CharField(
++        max_length=64,
++        db_index=True
++    )
++
++    status = models.CharField(
++        max_length=20,
++        choices=STATUS_CHOICES,
++        default=STATUS_PENDING
++    )
++
++    error_message = models.TextField(
++        blank=True,
++        default=""
++    )
++
++    extracted_text = models.TextField(
++        blank=True,
++        default=""
++    )
++
++    # Structured fields found in extracted_text; every item carries its
++    # own evidence (page, quote). Empty until processed.
++    parsed = models.JSONField(
++        default=dict,
++        blank=True
++    )
++
++    extraction_method = models.CharField(
++        max_length=40,
++        blank=True,
++        default=""
++    )
++
++    page_count = models.PositiveIntegerField(
++        default=0
++    )
++
++    extraction_seconds = models.FloatField(
++        default=0
++    )
++
++    created_at = models.DateTimeField(
++        auto_now_add=True
++    )
++
++    class Meta:
++        ordering = ["doc_type", "created_at"]
++
++    def __str__(self):
++        return f"{self.get_doc_type_display()}: {self.original_name}"
++
++
+ class HumanDecision(models.Model):
+     """
+     Phase 15 — Human-in-the-Loop Review.
+diff --git a/talent/templates/talent/apply_job.html b/talent/templates/talent/apply_job.html
+index 6bb1e33..8f802f6 100644
+--- a/talent/templates/talent/apply_job.html
++++ b/talent/templates/talent/apply_job.html
+@@ -1,3 +1,21 @@
+ {% extends 'base.html' %}
+ {% block title %}Apply · {{ job.title }}{% endblock %}
+-{% block content %}<div class="row justify-content-center"><div class="col-lg-8"><div class="page-header"><div class="page-kicker">Application</div><h1 class="fw-bold">Apply for {{ job.title }}</h1><p class="text-muted">Review your details below and upload your CV in PDF format.</p></div><div class="page-card p-4"><form method="POST" enctype="multipart/form-data">{% csrf_token %}<div class="row g-3"><div class="col-md-6"><div class="text-muted small">Full Name</div><div class="fw-semibold">{{ applicant_full_name }}</div></div><div class="col-md-6"><div class="text-muted small">Email</div><div class="fw-semibold">{{ applicant_email }}</div></div><div class="col-12"><div class="form-text mb-3">This is the name and email on your account. To change it, update your <a href="{% url 'profile' %}">profile</a> first.</div><label class="form-label fw-semibold">CV PDF</label><input type="file" name="cv_file" class="form-control" accept=".pdf,application/pdf" required><div class="form-text">Please upload a PDF CV.</div></div></div><button class="btn btn-tl mt-4">Submit Application</button></form></div></div></div>{% endblock %}
+\ No newline at end of file
++{% block content %}<div class="row justify-content-center"><div class="col-lg-8"><div class="page-header"><div class="page-kicker">Application</div><h1 class="fw-bold">Apply for {{ job.title }}</h1><p class="text-muted">Review your details below and upload your CV in PDF format.</p></div><div class="page-card p-4"><form method="POST" enctype="multipart/form-data">{% csrf_token %}<div class="row g-3"><div class="col-md-6"><div class="text-muted small">Full Name</div><div class="fw-semibold">{{ applicant_full_name }}</div></div><div class="col-md-6"><div class="text-muted small">Email</div><div class="fw-semibold">{{ applicant_email }}</div></div><div class="col-12"><div class="form-text mb-3">This is the name and email on your account. To change it, update your <a href="{% url 'profile' %}">profile</a> first.</div><label class="form-label fw-semibold">CV PDF</label><input type="file" name="cv_file" class="form-control" accept=".pdf,application/pdf" required><div class="form-text">Please upload a PDF CV.</div></div>
++<div class="col-12"><hr class="my-1"><div class="fw-semibold">Supporting documents <span class="text-muted fw-normal">(optional)</span></div><div class="form-text mb-2">PDF only, up to 5MB each. Leaving a field empty is fine &mdash; a missing document is never counted against you. Documents are read in the background together with your CV.</div></div>
++<div class="col-12"><label class="form-label fw-semibold" for="education_file">Latest Education Certificate / Diploma</label><input type="file" id="education_file" name="education_file" class="form-control" accept=".pdf,application/pdf" data-list="education_list"><ul class="small text-muted mb-0 mt-1" id="education_list"></ul></div>
++<div class="col-12"><label class="form-label fw-semibold" for="certificate_files">Certificates</label><input type="file" id="certificate_files" name="certificate_files" class="form-control" accept=".pdf,application/pdf" multiple data-list="certificate_list"><div class="form-text">Training, professional or skill certificates. You can select several files (up to 10).</div><ul class="small text-muted mb-0 mt-1" id="certificate_list"></ul></div>
++<div class="col-12"><label class="form-label fw-semibold" for="supporting_files">Other Supporting Documents</label><input type="file" id="supporting_files" name="supporting_files" class="form-control" accept=".pdf,application/pdf" multiple data-list="supporting_list"><div class="form-text">Up to 5 files.</div><ul class="small text-muted mb-0 mt-1" id="supporting_list"></ul></div>
++</div><button class="btn btn-tl mt-4">Submit Application</button></form></div></div></div>
++<script>
++document.querySelectorAll('input[type=file][data-list]').forEach(function (input) {
++  input.addEventListener('change', function () {
++    var list = document.getElementById(input.dataset.list);
++    list.innerHTML = '';
++    Array.prototype.forEach.call(input.files, function (f) {
++      var li = document.createElement('li');
++      li.textContent = f.name + ' (' + Math.max(1, Math.round(f.size / 1024)) + ' KB) \u2014 ready to upload';
++      list.appendChild(li);
++    });
++  });
++});
++</script>{% endblock %}
+\ No newline at end of file
+diff --git a/talent/templates/talent/candidate_detail.html b/talent/templates/talent/candidate_detail.html
+index 434df6f..a43c051 100644
+--- a/talent/templates/talent/candidate_detail.html
++++ b/talent/templates/talent/candidate_detail.html
+@@ -10,7 +10,7 @@
+    nothing about the AI score/decision/confidence block or any
+    candidate/application data changes. */
+ .cd-header-text{min-width:0;flex:1 1 260px}</style>{% endblock %}
+-{% block content %}<div class="page-header d-flex flex-wrap justify-content-between gap-3"><div class="cd-header-text"><div class="page-kicker">Candidate Intelligence</div><h1 class="fw-bold text-break">{{ application.candidate.full_name }}</h1><p class="text-muted mb-0 text-break">{{ application.job.title }} · {{ application.candidate.email }}</p></div><div class="text-end"><div class="score-xl">{{ application.ai_score }}</div><span class="badge rounded-pill {% if application.ai_decision == 'Highly Recommended' %}text-bg-success{% elif application.ai_decision == 'Recommended' %}badge-tl{% elif application.ai_decision == 'Not Recommended' %}text-bg-danger{% elif application.ai_decision %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ application.ai_decision|default:'Pending' }}</span><div class="small text-muted mt-2">Confidence {{ application.ai_confidence }}%</div></div></div><div class="row g-4"><div class="col-lg-6"><div class="page-card p-4 h-100"><h2 class="h5 fw-bold">Candidate Profile</h2><div class="mt-3"><div class="text-muted small">Education</div><div>{{ application.ai_profile.education|default:application.candidate.education|default:'—' }}</div></div><div class="mt-3"><div class="text-muted small">Experience</div><div>{{ application.ai_profile.years_experience|default:application.candidate.years_experience }} years</div></div><div class="mt-3"><div class="text-muted small">Professional Summary</div><div>{{ application.ai_profile.summary|default:application.candidate.professional_summary|default:'—' }}</div></div><div class="mt-3"><div class="text-muted small mb-2">Skills</div><div class="d-flex flex-wrap gap-2">{% for s in application.ai_profile.skills %}<span class="badge badge-tl">{{ s }}</span>{% empty %}<span class="text-muted">—</span>{% endfor %}</div></div></div></div><div class="col-lg-6"><div class="page-card p-4 h-100"><h2 class="h5 fw-bold">Job Requirement</h2><div class="mt-3"><div class="text-muted small">Position</div><div>{{ application.job.title }}</div></div><div class="mt-3"><div class="text-muted small">Department</div><div>{{ application.job.department }}</div></div><div class="mt-3"><div class="text-muted small">Requirements</div><div>{{ application.job.requirements }}</div></div><div class="mt-3"><div class="text-muted small mb-2">Required Skills</div><div class="d-flex flex-wrap gap-2">{% for s in application.job.skills.all %}<span class="badge text-bg-dark">{{ s.name }}</span>{% empty %}<span class="text-muted">—</span>{% endfor %}</div></div></div></div></div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Rule Engine</h2><p>Eligibility: {% if application.ai_rule_result.eligible %}<span class="badge text-bg-success">PASS</span>{% else %}<span class="badge text-bg-danger">FAIL</span>{% endif %}</p><div class="row"><div class="col-md-4"><div class="metric"><div class="text-muted small">Passed Rules</div><ul class="mb-0 mt-2">{% for x in application.ai_rule_result.passed_rules %}<li>{{ x }}</li>{% empty %}<li>None</li>{% endfor %}</ul></div></div><div class="col-md-4"><div class="metric"><div class="text-muted small">Failed Rules</div><ul class="mb-0 mt-2">{% for x in application.ai_rule_result.failed_rules %}<li>{{ x }}</li>{% empty %}<li>None</li>{% endfor %}</ul></div></div><div class="col-md-4"><div class="metric"><div class="text-muted small">Warnings</div><ul class="mb-0 mt-2">{% for x in application.ai_rule_result.warnings %}<li>{{ x }}</li>{% empty %}<li>None</li>{% endfor %}</ul></div></div></div></div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Semantic Matching</h2><div class="d-flex justify-content-between mb-2"><span class="text-muted">Overall Score</span><strong>{{ application.ai_semantic_result.overall_score }}</strong></div><div class="progress" style="height:12px"><div class="progress-bar" style="width:{{ application.ai_semantic_result.overall_score }}%"></div></div>{% for k,v in application.ai_semantic_result.dimension_scores.items %}<div class="d-flex justify-content-between small mt-3 mb-1"><span>{{ k|title }}</span><span>{{ v }}</span></div><div class="progress" style="height:8px"><div class="progress-bar bg-info" style="width:{{ v }}%"></div></div>{% endfor %}</div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Skill Gap Analysis</h2><div class="row"><div class="col-md-6"><h3 class="h6">Matched Skills</h3><ul>{% for s in application.ai_skill_gap.matched_skills %}<li>{{ s }}</li>{% empty %}<li>None</li>{% endfor %}</ul></div><div class="col-md-6"><h3 class="h6">Missing Skills</h3><ul>{% for s in application.ai_skill_gap.missing_skills %}<li class="text-danger">{{ s }}</li>{% empty %}<li>None</li>{% endfor %}</ul></div></div></div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Requirement &harr; Evidence Matrix</h2><p class="text-muted small mb-3">Every individual requirement checked against this candidate's extracted evidence — the same data behind the Rule Engine and Skill Gap cards above, in one auditable table.</p><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Requirement</th><th>Candidate Evidence</th><th class="text-center">Result</th></tr></thead><tbody>{% for row in application.ai_rule_result.matrix %}<tr><td>{{ row.requirement }}</td><td class="text-muted">{{ row.evidence }}</td><td class="text-center">{% if row.met %}<span class="badge text-bg-success">&check;</span>{% else %}<span class="badge text-bg-danger">&cross;</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No requirement matrix available.</td></tr>{% endfor %}</tbody></table></div></div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Legal Reference Evidence <span class="badge text-bg-light fw-normal">Per job, not per candidate</span></h2><p class="text-muted small mb-3">Retrieved once from the national civil service regulations when this job was created, and considered by the AI alongside this candidate's CV.</p>{% if application.ai_rag_context.evidence %}<div class="row g-3">{% for item in application.ai_rag_context.evidence %}<div class="col-md-6"><div class="border rounded p-3 h-100"><div class="d-flex justify-content-between align-items-center mb-1"><span class="fw-semibold small">{{ item.document }}</span><span class="badge badge-tl">relevance {{ item.score|floatformat:2 }}</span></div><p class="text-muted small mb-0">{{ item.excerpt }}</p></div></div>{% endfor %}</div>{% else %}<p class="text-muted small mb-0">No regulatory context was retrieved for this job (RAG service may have been unavailable when this job was created) — the fusion score fell back to the default policy weight for this application.</p>{% endif %}</div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Candidate-Specific Legal Evidence <span class="badge text-bg-light fw-normal">Per candidate</span></h2><p class="text-muted small mb-3">Targeted retrieval for THIS candidate's specific gaps against THIS job's requirements — in addition to, not a replacement for, the job-level regulations above. This is grounding context only; it does not by itself determine eligibility — the Rule Engine above remains the authoritative source for mandatory requirements.</p>{% if application.ai_rag_context.candidate_legal_evidence %}<div class="row g-3">{% for dimension, info in application.ai_rag_context.candidate_legal_evidence.items %}{% if info.status != 'not_applicable' %}<div class="col-md-6"><div class="border rounded p-3 h-100"><div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"><span class="fw-semibold small text-capitalize">{{ dimension }}</span><span class="badge {% if info.status == 'evidence_found' %}text-bg-success{% elif info.status == 'evidence_insufficient' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{% if info.status == 'evidence_found' %}Evidence Found{% elif info.status == 'evidence_not_found' %}Evidence Not Found{% elif info.status == 'evidence_insufficient' %}Evidence Insufficient{% elif info.status == 'not_applicable' %}Not Applicable{% else %}{{ info.status|default:"Unknown" }}{% endif %}</span></div>{% for item in info.evidence %}<div class="mt-2 pt-2 border-top"><div class="d-flex justify-content-between align-items-center mb-1"><span class="text-muted small">{{ item.source|default:"unknown source" }}</span><span class="badge badge-tl">score {{ item.score|floatformat:2 }}</span></div><p class="text-muted small mb-0">{{ item.verbatim_text|default:"—"|truncatechars:400 }}</p></div>{% empty %}<p class="text-muted small mb-0 mt-2">No supporting evidence retrieved for this dimension.</p>{% endfor %}</div></div>{% endif %}{% endfor %}</div>{% else %}<p class="text-muted small mb-0">No candidate-specific legal evidence was retrieved for this application — either every dimension already met the job's requirements (no gap to check), or candidate-specific legal RAG (NEW_CANDIDATE_RAG) was not active when this application was processed.</p>{% endif %}</div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Explainable AI</h2><h3 class="h6 mt-3">Reasoning</h3><ul>{% for x in application.ai_explainable_report.reasoning %}<li>{{ x }}</li>{% empty %}<li>Not available</li>{% endfor %}</ul><h3 class="h6 mt-4">Risks</h3><ul>{% for x in application.ai_explainable_report.risks %}<li>{{ x }}</li>{% empty %}<li>None reported</li>{% endfor %}</ul><h3 class="h6 mt-4">Recommendation</h3><p>{{ application.ai_explainable_report.recommendation|default:application.ai_feedback }}</p></div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Human Review <span class="badge text-bg-light fw-normal">Final decision — AI cannot set this</span></h2>{% if application.human_decision %}<div class="alert {% if application.human_decision.decision == 'approved' %}alert-success{% else %}alert-danger{% endif %} mb-0"><strong>{{ application.human_decision.get_decision_display }}</strong> by {{ application.human_decision.decided_by|default:"an unlisted user" }} on {{ application.human_decision.updated_at|date:"Y-m-d H:i" }}{% if not application.human_decision.agreed_with_ai %} &mdash; <span class="fw-semibold">overrides the AI recommendation</span>{% endif %}<div class="mt-2 text-muted small">Reason: {{ application.human_decision.reason }}</div></div>{% if can_decide %}<p class="text-muted small mt-3 mb-0">This decision is final and cannot be changed from this page.</p>{% endif %}{% else %}<p class="text-muted small mb-3">The AI recommendation above is evidence, not a decision. Record the recruiter's final call and reason below — this becomes part of the permanent audit record for this application.</p>{% if can_decide %}<form method="POST"><input type="hidden" name="form_type" value="human_decision">{% csrf_token %}<div class="mb-3"><textarea name="reason" class="form-control" rows="2" placeholder="Reason for this decision (required)" required></textarea></div><div class="d-flex gap-2"><button type="submit" name="decision" value="approved" class="btn btn-tl">Approve Candidate</button><button type="submit" name="decision" value="rejected" class="btn btn-outline-danger">Reject Candidate</button></div></form>{% else %}<div class="alert alert-secondary mb-0">Only an administrator can record the final decision. This application is awaiting administrator review.</div>{% endif %}{% endif %}</div>
++{% block content %}<div class="page-header d-flex flex-wrap justify-content-between gap-3"><div class="cd-header-text"><div class="page-kicker">Candidate Intelligence</div><h1 class="fw-bold text-break">{{ application.candidate.full_name }}</h1><p class="text-muted mb-0 text-break">{{ application.job.title }} · {{ application.candidate.email }}</p></div><div class="text-end"><div class="score-xl">{{ application.ai_score }}</div><span class="badge rounded-pill {% if application.ai_decision == 'Highly Recommended' %}text-bg-success{% elif application.ai_decision == 'Recommended' %}badge-tl{% elif application.ai_decision == 'Not Recommended' %}text-bg-danger{% elif application.ai_decision %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ application.ai_decision|default:'Pending' }}</span><div class="small text-muted mt-2">Confidence {{ application.ai_confidence }}%</div></div></div><div class="row g-4"><div class="col-lg-6"><div class="page-card p-4 h-100"><h2 class="h5 fw-bold">Candidate Profile</h2><div class="mt-3"><div class="text-muted small">Education</div><div>{{ application.ai_profile.education|default:application.candidate.education|default:'—' }}</div></div><div class="mt-3"><div class="text-muted small">Experience</div><div>{{ application.ai_profile.years_experience|default:application.candidate.years_experience }} years</div></div><div class="mt-3"><div class="text-muted small">Professional Summary</div><div>{{ application.ai_profile.summary|default:application.candidate.professional_summary|default:'—' }}</div></div><div class="mt-3"><div class="text-muted small mb-2">Skills</div><div class="d-flex flex-wrap gap-2">{% for s in application.ai_profile.skills %}<span class="badge badge-tl">{{ s }}</span>{% empty %}<span class="text-muted">—</span>{% endfor %}</div></div></div></div><div class="col-lg-6"><div class="page-card p-4 h-100"><h2 class="h5 fw-bold">Job Requirement</h2><div class="mt-3"><div class="text-muted small">Position</div><div>{{ application.job.title }}</div></div><div class="mt-3"><div class="text-muted small">Department</div><div>{{ application.job.department }}</div></div><div class="mt-3"><div class="text-muted small">Requirements</div><div>{{ application.job.requirements }}</div></div><div class="mt-3"><div class="text-muted small mb-2">Required Skills</div><div class="d-flex flex-wrap gap-2">{% for s in application.job.skills.all %}<span class="badge text-bg-dark">{{ s.name }}</span>{% empty %}<span class="text-muted">—</span>{% endfor %}</div></div></div></div></div>{% if supporting_documents %}<div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Supporting Documents</h2><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Type</th><th>File</th><th>Status</th></tr></thead><tbody>{% for d in supporting_documents %}<tr><td>{{ d.get_doc_type_display }}</td><td class="text-break">{{ d.original_name }}</td><td>{% if d.status == 'processed' %}<span class="badge text-bg-success">Processed</span>{% elif d.status == 'low_quality' %}<span class="badge text-bg-warning">Low scan quality</span>{% elif d.status == 'pending' %}<span class="badge text-bg-secondary">Waiting to be read</span>{% else %}<span class="badge text-bg-danger">Could not be read</span>{% endif %}{% if d.status == 'failed' and d.error_message %}<div class="small text-muted mt-1">{{ d.error_message }}</div>{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% if is_staff_reviewer and document_review.needs_human_review %}<div class="alert alert-warning mt-3 mb-0"><strong>Flagged for human review</strong><ul class="mb-0 mt-2">{% for r in document_review.review_reasons %}<li>{{ r }}</li>{% endfor %}</ul></div>{% endif %}</div>{% endif %}<div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Rule Engine</h2><p>Eligibility: {% if application.ai_rule_result.eligible %}<span class="badge text-bg-success">PASS</span>{% else %}<span class="badge text-bg-danger">FAIL</span>{% endif %}</p><div class="row"><div class="col-md-4"><div class="metric"><div class="text-muted small">Passed Rules</div><ul class="mb-0 mt-2">{% for x in application.ai_rule_result.passed_rules %}<li>{{ x }}</li>{% empty %}<li>None</li>{% endfor %}</ul></div></div><div class="col-md-4"><div class="metric"><div class="text-muted small">Failed Rules</div><ul class="mb-0 mt-2">{% for x in application.ai_rule_result.failed_rules %}<li>{{ x }}</li>{% empty %}<li>None</li>{% endfor %}</ul></div></div><div class="col-md-4"><div class="metric"><div class="text-muted small">Warnings</div><ul class="mb-0 mt-2">{% for x in application.ai_rule_result.warnings %}<li>{{ x }}</li>{% empty %}<li>None</li>{% endfor %}</ul></div></div></div></div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Semantic Matching</h2><div class="d-flex justify-content-between mb-2"><span class="text-muted">Overall Score</span><strong>{{ application.ai_semantic_result.overall_score }}</strong></div><div class="progress" style="height:12px"><div class="progress-bar" style="width:{{ application.ai_semantic_result.overall_score }}%"></div></div>{% for k,v in application.ai_semantic_result.dimension_scores.items %}<div class="d-flex justify-content-between small mt-3 mb-1"><span>{{ k|title }}</span><span>{{ v }}</span></div><div class="progress" style="height:8px"><div class="progress-bar bg-info" style="width:{{ v }}%"></div></div>{% endfor %}</div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Skill Gap Analysis</h2><div class="row"><div class="col-md-6"><h3 class="h6">Matched Skills</h3><ul>{% for s in application.ai_skill_gap.matched_skills %}<li>{{ s }}</li>{% empty %}<li>None</li>{% endfor %}</ul></div><div class="col-md-6"><h3 class="h6">Missing Skills</h3><ul>{% for s in application.ai_skill_gap.missing_skills %}<li class="text-danger">{{ s }}</li>{% empty %}<li>None</li>{% endfor %}</ul></div></div></div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Requirement &harr; Evidence Matrix</h2><p class="text-muted small mb-3">Every individual requirement checked against this candidate's extracted evidence — the same data behind the Rule Engine and Skill Gap cards above, in one auditable table.</p><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Requirement</th><th>Candidate Evidence</th><th class="text-center">Result</th></tr></thead><tbody>{% for row in application.ai_rule_result.matrix %}<tr><td>{{ row.requirement }}</td><td class="text-muted">{{ row.evidence }}</td><td class="text-center">{% if row.met %}<span class="badge text-bg-success">&check;</span>{% else %}<span class="badge text-bg-danger">&cross;</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="3" class="text-center text-muted py-3">No requirement matrix available.</td></tr>{% endfor %}</tbody></table></div></div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Legal Reference Evidence <span class="badge text-bg-light fw-normal">Per job, not per candidate</span></h2><p class="text-muted small mb-3">Retrieved once from the national civil service regulations when this job was created, and considered by the AI alongside this candidate's CV.</p>{% if application.ai_rag_context.evidence %}<div class="row g-3">{% for item in application.ai_rag_context.evidence %}<div class="col-md-6"><div class="border rounded p-3 h-100"><div class="d-flex justify-content-between align-items-center mb-1"><span class="fw-semibold small">{{ item.document }}</span><span class="badge badge-tl">relevance {{ item.score|floatformat:2 }}</span></div><p class="text-muted small mb-0">{{ item.excerpt }}</p></div></div>{% endfor %}</div>{% else %}<p class="text-muted small mb-0">No regulatory context was retrieved for this job (RAG service may have been unavailable when this job was created) — the fusion score fell back to the default policy weight for this application.</p>{% endif %}</div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Candidate-Specific Legal Evidence <span class="badge text-bg-light fw-normal">Per candidate</span></h2><p class="text-muted small mb-3">Targeted retrieval for THIS candidate's specific gaps against THIS job's requirements — in addition to, not a replacement for, the job-level regulations above. This is grounding context only; it does not by itself determine eligibility — the Rule Engine above remains the authoritative source for mandatory requirements.</p>{% if application.ai_rag_context.candidate_legal_evidence %}<div class="row g-3">{% for dimension, info in application.ai_rag_context.candidate_legal_evidence.items %}{% if info.status != 'not_applicable' %}<div class="col-md-6"><div class="border rounded p-3 h-100"><div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"><span class="fw-semibold small text-capitalize">{{ dimension }}</span><span class="badge {% if info.status == 'evidence_found' %}text-bg-success{% elif info.status == 'evidence_insufficient' %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{% if info.status == 'evidence_found' %}Evidence Found{% elif info.status == 'evidence_not_found' %}Evidence Not Found{% elif info.status == 'evidence_insufficient' %}Evidence Insufficient{% elif info.status == 'not_applicable' %}Not Applicable{% else %}{{ info.status|default:"Unknown" }}{% endif %}</span></div>{% for item in info.evidence %}<div class="mt-2 pt-2 border-top"><div class="d-flex justify-content-between align-items-center mb-1"><span class="text-muted small">{{ item.source|default:"unknown source" }}</span><span class="badge badge-tl">score {{ item.score|floatformat:2 }}</span></div><p class="text-muted small mb-0">{{ item.verbatim_text|default:"—"|truncatechars:400 }}</p></div>{% empty %}<p class="text-muted small mb-0 mt-2">No supporting evidence retrieved for this dimension.</p>{% endfor %}</div></div>{% endif %}{% endfor %}</div>{% else %}<p class="text-muted small mb-0">No candidate-specific legal evidence was retrieved for this application — either every dimension already met the job's requirements (no gap to check), or candidate-specific legal RAG (NEW_CANDIDATE_RAG) was not active when this application was processed.</p>{% endif %}</div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Explainable AI</h2><h3 class="h6 mt-3">Reasoning</h3><ul>{% for x in application.ai_explainable_report.reasoning %}<li>{{ x }}</li>{% empty %}<li>Not available</li>{% endfor %}</ul><h3 class="h6 mt-4">Risks</h3><ul>{% for x in application.ai_explainable_report.risks %}<li>{{ x }}</li>{% empty %}<li>None reported</li>{% endfor %}</ul><h3 class="h6 mt-4">Recommendation</h3><p>{{ application.ai_explainable_report.recommendation|default:application.ai_feedback }}</p></div><div class="page-card p-4 mt-4"><h2 class="h5 fw-bold">Human Review <span class="badge text-bg-light fw-normal">Final decision — AI cannot set this</span></h2>{% if application.human_decision %}<div class="alert {% if application.human_decision.decision == 'approved' %}alert-success{% else %}alert-danger{% endif %} mb-0"><strong>{{ application.human_decision.get_decision_display }}</strong> by {{ application.human_decision.decided_by|default:"an unlisted user" }} on {{ application.human_decision.updated_at|date:"Y-m-d H:i" }}{% if not application.human_decision.agreed_with_ai %} &mdash; <span class="fw-semibold">overrides the AI recommendation</span>{% endif %}<div class="mt-2 text-muted small">Reason: {{ application.human_decision.reason }}</div></div>{% if can_decide %}<p class="text-muted small mt-3 mb-0">This decision is final and cannot be changed from this page.</p>{% endif %}{% else %}<p class="text-muted small mb-3">The AI recommendation above is evidence, not a decision. Record the recruiter's final call and reason below — this becomes part of the permanent audit record for this application.</p>{% if can_decide %}<form method="POST"><input type="hidden" name="form_type" value="human_decision">{% csrf_token %}<div class="mb-3"><textarea name="reason" class="form-control" rows="2" placeholder="Reason for this decision (required)" required></textarea></div><div class="d-flex gap-2"><button type="submit" name="decision" value="approved" class="btn btn-tl">Approve Candidate</button><button type="submit" name="decision" value="rejected" class="btn btn-outline-danger">Reject Candidate</button></div></form>{% else %}<div class="alert alert-secondary mb-0">Only an administrator can record the final decision. This application is awaiting administrator review.</div>{% endif %}{% endif %}</div>
+ 
+ {% if can_view_audit %}
+ 
+diff --git a/talent/test_documents.py b/talent/test_documents.py
+new file mode 100644
+index 0000000..1ef3738
+--- /dev/null
++++ b/talent/test_documents.py
+@@ -0,0 +1,516 @@
++"""
++Multi-document upload and unified candidate object.
++
++Follows talent/test_task_i.py: REAL document extraction (pypdf, Poppler,
++Tesseract) and the real worker command run in these tests; only the LLM /
++embedding calls inside the AI pipeline and the Notification #1 sender are
++replaced, because the subject here is WHAT the documents contribute and
++WHEN, not model quality.  All PDFs are synthetic.  No Ollama is needed.
++"""
++
++import copy
++import io
++import logging
++import shutil
++from io import StringIO
++from unittest import mock, skipUnless
++
++from django.core.files.uploadedfile import SimpleUploadedFile
++from django.core.management import call_command
++from django.urls import reverse
++
++from accounts.models import User
++from ai_engine.services import recruitment_pipeline as rp
++from ai_engine.services.document_extraction import orchestrator
++from ai_engine.test_document_extraction import (
++    _make_digital_pdf,
++    _make_scanned_pdf,
++)
++from talent import statuses as S
++from talent.documents import (
++    MAX_CERTIFICATES,
++    process_pending_supporting_documents,
++    store_supporting_documents,
++    validate_uploads,
++)
++from talent.models import (
++    Application,
++    ApplicationDocument,
++    ApplicationSupportingDocument as SD,
++)
++from talent.test_task_i import (
++    TaskIBase,
++    WORKER,
++    _bytes_of,
++    encrypted_pdf,
++    native_pdf,
++)
++from talent.tests import _make_role
++from talent.unified import build_unified, enrich_profile, names_match
++
++DIPLOMA = [
++    "Universidade Nacional de Timor Lorosae",
++    "DIPLOMA",
++    "This is to certify that",
++    "Maria da Silva",
++    "has been awarded the degree of",
++    "Bachelor of Science in Information Technology",
++    "Date of graduation: 15 July 2018",
++]
++
++CERT = [
++    "CERTIFICATE OF COMPLETION",
++    "This is to certify that Maria da Silva",
++    "has successfully completed Network Fundamentals Training",
++    "Issued by: Example Networking Academy",
++    "Date of issue: 12 March 2022",
++    "Valid until: 12 March 2025",
++]
++
++CERT2 = [
++    "PROJECT MANAGEMENT CERTIFICATION",
++    "Awarded to Maria da Silva",
++    "Issued by: Example Institute of Management",
++    "Date of issue: 3 June 2021",
++]
++
++
++def pdf(lines):
++    return _bytes_of(_make_digital_pdf, lines)
++
++
++def good_profile(**over):
++    profile = {
++        "education": "Bachelor of Science in Information Technology",
++        "skills": ["Networking", "Python"],
++        "languages": ["English"],
++        "certifications": [],
++        "years_experience": 5,
++        "professional_summary": "ICT officer",
++    }
++    profile.update(over)
++    return profile
++
++
++class DocBase(TaskIBase):
++
++    def add(self, app, doc_type, data, name="doc.pdf"):
++        return SD.objects.create(
++            application=app, doc_type=doc_type, pdf_bytes=data,
++            original_name=name, sha256=name,
++        )
++
++    def processed(self, app):
++        process_pending_supporting_documents(app)
++        return list(app.supporting_documents.all())
++
++    def run_real_pipeline(self, profile=None):
++        """Run the real worker and the REAL recruitment_pipeline; only the
++        LLM / embedding calls inside it are replaced."""
++        seen = {"rule_profile": None, "cv_prompts": []}
++
++        def fake_cv(text, *a, **k):
++            seen["cv_prompts"].append(text)
++            return copy.deepcopy(profile or good_profile(education=""))
++
++        def fake_rules(prof, job_prof):
++            seen["rule_profile"] = copy.deepcopy(prof)
++            return {"eligible": True, "passed_rules": [], "failed_rules": [],
++                    "warnings": [], "matrix": []}
++
++        assessment = {
++            "overall_score": 70, "dimension_scores": {"skills": 70},
++            "decision": "Recommended", "confidence": 80,
++            "reasoning": ["ok"], "risks": [], "recommendation": "Proceed"}
++
++        with mock.patch.object(rp, "analyze_cv", side_effect=fake_cv), \
++             mock.patch.object(rp, "evaluate_recruitment_rules", side_effect=fake_rules), \
++             mock.patch.object(rp, "skill_gap_analysis", return_value={"match_score": 60}), \
++             mock.patch.object(rp, "generate_recruitment_assessment", return_value=assessment), \
++             mock.patch.object(rp, "NEW_CANDIDATE_RAG", False), \
++             mock.patch(f"{WORKER}.send_ai_screening_completed_email"):
++            out = StringIO()
++            call_command("process_pending_applications", stdout=out)
++        return seen, out.getvalue()
++
++
++# =====================================================================
++# Reading + merging (real extraction)
++# =====================================================================
++
++class ReadAndMergeTests(DocBase):
++
++    # 1. CV only
++    def test_cv_only_object_and_profile_unchanged(self):
++        app = self.queue(native_pdf())
++        profile = good_profile(certifications=["First Aid"])
++        unified = build_unified(app, profile)
++        self.assertFalse(unified["needs_human_review"])
++        self.assertEqual([e["sources"] for e in unified["education"]], [["cv"]])
++        self.assertEqual([c["name"] for c in unified["certifications"]], ["First Aid"])
++        self.assertEqual(enrich_profile(profile, unified), profile)
++
++    # 2. CV + diploma
++    def test_cv_plus_diploma_merges_education(self):
++        app = self.queue(native_pdf())
++        self.add(app, SD.TYPE_EDUCATION, pdf(DIPLOMA), "diploma.pdf")
++        (doc,) = self.processed(app)
++        self.assertEqual(doc.status, SD.STATUS_PROCESSED)
++        self.assertEqual(doc.extraction_method, "native")
++        self.assertIsNone(doc.pdf_bytes)            # bytes released
++        unified = build_unified(app, good_profile())
++        self.assertEqual(len(unified["education"]), 1)
++        e = unified["education"][0]
++        self.assertEqual(e["sources"], ["cv", "education_certificate"])
++        self.assertEqual(e["level"], "bachelor")
++        self.assertEqual(e["field"], "Information Technology")
++        self.assertIn("Universidade Nacional", e["institution"])
++        self.assertEqual(e["year"], 2018)
++        self.assertEqual(unified["conflicts"], [])
++
++    # 3. CV + certificate
++    def test_cv_plus_certificate(self):
++        app = self.queue(native_pdf())
++        self.add(app, SD.TYPE_CERTIFICATE, pdf(CERT), "cert.pdf")
++        self.processed(app)
++        unified = build_unified(app, good_profile())
++        (cert,) = unified["certifications"]
++        self.assertIn("Network Fundamentals", cert["name"])
++        self.assertIn("Example Networking Academy", cert["issuer"])
++        self.assertIn("12 March 2022", cert["issued_date"])
++        self.assertIn("12 March 2025", cert["expiry_date"])
++        enriched = enrich_profile(good_profile(), unified)
++        self.assertEqual(len(enriched["certifications"]), 1)
++
++    # 4. everything together, no needless duplicates
++    def test_full_set_is_one_object_without_duplicates(self):
++        app = self.queue(native_pdf())
++        self.add(app, SD.TYPE_EDUCATION, pdf(DIPLOMA), "d.pdf")
++        self.add(app, SD.TYPE_CERTIFICATE, pdf(CERT), "c1.pdf")
++        self.add(app, SD.TYPE_CERTIFICATE, pdf(CERT2), "c2.pdf")
++        self.processed(app)
++        profile = good_profile(certifications=["Network Fundamentals Training"])
++        unified = build_unified(app, profile)
++        self.assertEqual(len(unified["certifications"]), 2,
++                         [c["name"] for c in unified["certifications"]])
++        net = next(c for c in unified["certifications"] if "Network" in c["name"])
++        self.assertEqual(sorted(net["sources"]), ["certificate", "cv"])
++        self.assertEqual(len(unified["education"]), 1)
++        self.assertFalse(unified["needs_human_review"])
++
++    # 5. nothing optional uploaded
++    def test_no_optional_documents(self):
++        app = self.queue(native_pdf())
++        unified = build_unified(app, good_profile())
++        status = unified["document_processing_status"]
++        self.assertEqual(status["documents"], [])
++        self.assertEqual(len(status["optional_not_uploaded"]), 3)
++        self.assertIn("not treated as evidence", status["note"])
++        self.assertFalse(unified["needs_human_review"])
++
++    # 6. unreadable documents
++    def test_unreadable_documents_are_recorded_not_fatal(self):
++        app = self.queue(native_pdf())
++        bad = self.add(app, SD.TYPE_CERTIFICATE, b"%PDF-1.4 not a real pdf", "broken.pdf")
++        enc = self.add(app, SD.TYPE_SUPPORTING, encrypted_pdf(), "locked.pdf")
++        ok = self.add(app, SD.TYPE_CERTIFICATE, pdf(CERT), "ok.pdf")
++        self.processed(app)
++        for doc in (bad, enc, ok):
++            doc.refresh_from_db()
++        self.assertEqual(bad.status, SD.STATUS_FAILED)
++        self.assertEqual(enc.status, SD.STATUS_FAILED)
++        self.assertTrue(bad.error_message)
++        self.assertEqual(ok.status, SD.STATUS_PROCESSED)
++        unified = build_unified(app, good_profile())
++        self.assertEqual(len(unified["certifications"]), 1)
++        self.assertTrue(unified["needs_human_review"])
++        reasons = " ".join(unified["review_reasons"])
++        self.assertIn("document_unreadable: broken.pdf", reasons)
++        self.assertIn("document_unreadable: locked.pdf", reasons)
++
++    # 7. conflicts are kept and flagged, never resolved silently
++    def test_education_level_conflict(self):
++        app = self.queue(native_pdf())
++        self.add(app, SD.TYPE_EDUCATION, pdf(DIPLOMA), "d.pdf")
++        self.processed(app)
++        profile = good_profile(education="Master of Science in Information Technology")
++        unified = build_unified(app, profile)
++        conflict = next(c for c in unified["conflicts"]
++                        if c["type"] == "education_level_mismatch")
++        self.assertEqual({v["source"] for v in conflict["values"]},
++                         {"cv", "education_certificate"})
++        self.assertEqual(len(unified["education"]), 2)       # both kept
++        self.assertTrue(unified["needs_human_review"])
++        self.assertEqual(enrich_profile(profile, unified)["education"],
++                         profile["education"])               # CV value not replaced
++
++    def test_name_on_document_differs_from_applicant(self):
++        app = self.queue(native_pdf())
++        other = [line.replace("Maria da Silva", "Joana Pereira") for line in CERT]
++        self.add(app, SD.TYPE_CERTIFICATE, pdf(other), "c.pdf")
++        self.processed(app)
++        unified = build_unified(app, good_profile())
++        self.assertIn("holder_name_mismatch", [c["type"] for c in unified["conflicts"]])
++        self.assertTrue(unified["needs_human_review"])
++        self.assertTrue(names_match("María da Silva", "Maria Silva"))
++        self.assertFalse(names_match("Joana Pereira", "Maria da Silva"))
++
++    def test_conflicting_dates_for_the_same_certificate(self):
++        app = self.queue(native_pdf())
++        self.add(app, SD.TYPE_CERTIFICATE, pdf(CERT), "c1.pdf")
++        changed = [x.replace("12 March 2022", "1 January 2019") for x in CERT]
++        self.add(app, SD.TYPE_CERTIFICATE, pdf(changed), "c2.pdf")
++        self.processed(app)
++        unified = build_unified(app, good_profile())
++        self.assertEqual(len(unified["certifications"]), 1)
++        self.assertIn("certification_detail_mismatch",
++                      [c["type"] for c in unified["conflicts"]])
++
++    # 8. provenance
++    def test_evidence_names_document_page_and_quote(self):
++        app = self.queue(native_pdf())
++        doc = self.add(app, SD.TYPE_CERTIFICATE, pdf(CERT), "cert.pdf")
++        self.processed(app)
++        unified = build_unified(app, good_profile())
++        ev = [e for e in unified["evidence"] if e["document_type"] == "certificate"]
++        self.assertTrue(ev)
++        self.assertTrue(all(e["document"] == "cert.pdf" for e in ev))
++        self.assertTrue(all(e["document_id"] == doc.pk for e in ev))
++        self.assertTrue(all(e["page"] == 1 for e in ev))
++        self.assertTrue(any("Issued by" in (e["quote"] or "") for e in ev))
++
++    def test_unrecognised_certificate_claims_nothing(self):
++        app = self.queue(native_pdf())
++        self.add(app, SD.TYPE_CERTIFICATE,
++                 pdf(["Random invoice 0001", "Total due 25 USD", "Thank you for your order"]), "x.pdf")
++        self.processed(app)
++        self.assertEqual(build_unified(app, good_profile())["certifications"], [])
++
++    def test_supporting_document_adds_no_qualification(self):
++        app = self.queue(native_pdf())
++        self.add(app, SD.TYPE_SUPPORTING,
++                 pdf(["Letter of reference", "Bachelor of Law and Master of Arts mentioned here"]), "ref.pdf")
++        self.processed(app)
++        unified = build_unified(app, good_profile())
++        self.assertEqual(len(unified["supporting_information"]), 1)
++        self.assertEqual(len(unified["education"]), 1)
++        self.assertEqual(unified["certifications"], [])
++
++    @skipUnless(shutil.which("tesseract") and shutil.which("pdftoppm"),
++                "Tesseract / Poppler not installed")
++    def test_scanned_certificate_uses_the_existing_ocr_path(self):
++        app = self.queue(native_pdf())
++        scan = _bytes_of(_make_scanned_pdf, [[
++            "CERTIFICATE OF COMPLETION",
++            "This is to certify that Maria da Silva",
++            "has successfully completed Network Fundamentals Training",
++            "Issued by: Example Networking Academy",
++            "Date of issue: 12 March 2022",
++        ]])
++        doc = self.add(app, SD.TYPE_CERTIFICATE, scan, "scan.pdf")
++        self.processed(app)
++        doc.refresh_from_db()
++        self.assertIn(doc.status, (SD.STATUS_PROCESSED, SD.STATUS_LOW_QUALITY))
++        self.assertIn("ocr", doc.extraction_method)
++        self.assertTrue(doc.parsed["certifications"])
++
++
++# =====================================================================
++# Web request
++# =====================================================================
++
++class ApplyWebTests(DocBase):
++
++    def setUp(self):
++        super().setUp()
++        self.client.login(email="ti@x.com", password="pass12345")
++        self.url = reverse("apply_job", kwargs={"job_id": self.job.id})
++
++    def post(self, **files):
++        data = {"cv_file": SimpleUploadedFile("cv.pdf", native_pdf(),
++                                              content_type="application/pdf")}
++        data.update(files)
++        return self.client.post(self.url, data, follow=True)
++
++    @staticmethod
++    def up(name, data):
++        return SimpleUploadedFile(name, data, content_type="application/pdf")
++
++    def test_form_shows_all_four_inputs(self):
++        html = self.client.get(self.url).content.decode()
++        for name in ("cv_file", "education_file", "certificate_files", "supporting_files"):
++            self.assertIn(f'name="{name}"', html)
++
++    # 10. valid set is queued; nothing is read in the request
++    def test_valid_documents_are_stored_and_nothing_is_extracted_in_the_request(self):
++        with mock.patch.object(orchestrator, "extract_document") as extract:
++            resp = self.post(
++                education_file=self.up("diploma.pdf", pdf(DIPLOMA)),
++                certificate_files=[self.up("c1.pdf", pdf(CERT)),
++                                   self.up("c2.pdf", pdf(CERT2))],
++                supporting_files=[self.up("ref.pdf", pdf(["Reference letter"]))])
++        extract.assert_not_called()
++        app = Application.objects.get(job=self.job)
++        self.assertEqual(app.ai_status, S.QUEUED)
++        docs = app.supporting_documents.all()
++        self.assertEqual(docs.count(), 4)
++        self.assertTrue(all(d.pdf_bytes and d.status == SD.STATUS_PENDING for d in docs))
++        text = " ".join(str(m) for m in resp.context["messages"])
++        self.assertIn("diploma.pdf", text)
++        self.assertIn("c2.pdf", text)
++
++    def test_cv_only_is_unchanged(self):
++        self.post()
++        app = Application.objects.get(job=self.job)
++        self.assertEqual(app.supporting_documents.count(), 0)
++        self.assertEqual(app.ai_status, S.QUEUED)
++
++    def test_invalid_file_rejects_the_whole_submission(self):
++        bad_inputs = {
++            "not a pdf extension": self.up("notes.txt", b"hello"),
++            "pdf extension, wrong content": self.up("x.pdf", b"hello world"),
++            "empty": self.up("e.pdf", b""),
++            "encrypted": self.up("lock.pdf", encrypted_pdf()),
++            "oversized": self.up("big.pdf", b"%PDF-" + b"0" * (5 * 1024 * 1024 + 1)),
++        }
++        for label, upload in bad_inputs.items():
++            with self.subTest(label):
++                self.post(certificate_files=[upload])
++                self.assertFalse(Application.objects.filter(job=self.job).exists(), label)
++
++    def test_certificate_cap(self):
++        files = [self.up(f"{i}.pdf", pdf([f"Certificate number {i}", "Training course"]))
++                 for i in range(MAX_CERTIFICATES + 1)]
++        self.post(certificate_files=files)
++        self.assertFalse(Application.objects.filter(job=self.job).exists())
++
++    def test_identical_files_are_stored_once(self):
++        data = pdf(CERT)
++        items, error = validate_uploads(
++            None, [self.up("a.pdf", data), self.up("b.pdf", data)], [])
++        self.assertIsNone(error)
++        self.assertEqual(len(items), 1)
++
++    def test_reupload_after_cv_failure_replaces_that_document_type(self):
++        self.post(education_file=self.up("old.pdf", pdf(DIPLOMA)))
++        app = Application.objects.get(job=self.job)
++        app.ai_status = S.DOCUMENT_INVALID
++        app.save()
++        newer = DIPLOMA[:-1] + ["Date of graduation: 1 July 2020"]
++        self.post(education_file=self.up("new.pdf", pdf(newer)))
++        names = list(app.supporting_documents.values_list("original_name", flat=True))
++        self.assertEqual(names, ["new.pdf"])
++
++
++# =====================================================================
++# Worker + pipeline (real worker, real pipeline, stubbed LLM calls)
++# =====================================================================
++
++class WorkerAndPipelineTests(DocBase):
++
++    # 9. screening integration -- CV only keeps the old behaviour
++    def test_cv_only_screening_is_unchanged(self):
++        app = self.queue(native_pdf())
++        profile = good_profile(education="Bachelor of IT", certifications=["First Aid"])
++        seen, _ = self.run_real_pipeline(profile)
++        app.refresh_from_db()
++        self.assertEqual(app.ai_status, S.SUCCESS)
++        self.assertEqual(seen["rule_profile"], profile)
++        self.assertNotIn("document_review", app.ai_rag_context)
++        self.assertEqual(len(seen["cv_prompts"]), 1)
++        self.assertEqual(app.unified_candidate["schema_version"], 1)
++
++    def test_documents_flow_from_upload_to_unified_object(self):
++        app = self.queue(native_pdf())
++        self.add(app, SD.TYPE_EDUCATION, pdf(DIPLOMA), "d.pdf")
++        self.add(app, SD.TYPE_CERTIFICATE, pdf(CERT), "c.pdf")
++        self.add(app, SD.TYPE_CERTIFICATE, b"%PDF-1.4 broken", "bad.pdf")
++        seen, _ = self.run_real_pipeline()
++        app.refresh_from_db()
++        self.assertEqual(app.ai_status, S.SUCCESS)
++        # the LLM profile call ran once, on the CV text only
++        self.assertEqual(len(seen["cv_prompts"]), 1)
++        self.assertNotIn("Date of graduation", seen["cv_prompts"][0])
++        self.assertNotIn("Network Fundamentals", seen["cv_prompts"][0])
++        # the rule engine received the education from the diploma + the certificate
++        self.assertIn("Bachelor", seen["rule_profile"]["education"])
++        self.assertTrue(any("Network Fundamentals" in c
++                            for c in seen["rule_profile"]["certifications"]))
++        # unified object stored, review flag set for the unreadable document
++        review = app.ai_rag_context["document_review"]
++        self.assertTrue(review["needs_human_review"])
++        self.assertTrue(any("bad.pdf" in r for r in review["review_reasons"]))
++        self.assertEqual(len(app.unified_candidate["certifications"]), 1)
++        # all old output fields are still filled
++        for field in ("ai_profile", "ai_rule_result", "ai_semantic_result",
++                      "ai_skill_gap", "ai_explainable_report"):
++            self.assertTrue(getattr(app, field), field)
++        # bytes of every supporting document were released
++        self.assertFalse(app.supporting_documents.exclude(pdf_bytes=None).exists())
++        self.assertFalse(ApplicationDocument.objects.filter(application=app).exists())
++
++    def test_supporting_document_crash_never_blocks_screening(self):
++        app = self.queue(native_pdf())
++        self.add(app, SD.TYPE_CERTIFICATE, pdf(CERT), "c.pdf")
++        with mock.patch(f"{WORKER}.process_pending_supporting_documents",
++                        side_effect=RuntimeError("boom")):
++            self.run_real_pipeline()
++        app.refresh_from_db()
++        self.assertEqual(app.ai_status, S.SUCCESS)
++
++    def test_merge_failure_never_blocks_screening(self):
++        app = self.queue(native_pdf())
++        with mock.patch("talent.unified.build_unified", side_effect=RuntimeError("boom")):
++            seen, _ = self.run_real_pipeline(good_profile())
++        app.refresh_from_db()
++        self.assertEqual(app.ai_status, S.SUCCESS)
++        self.assertEqual(seen["rule_profile"], good_profile())
++
++    def test_failed_cv_leaves_documents_waiting_for_the_reupload(self):
++        app = self.queue(b"%PDF-1.4 corrupt cv")
++        doc = self.add(app, SD.TYPE_CERTIFICATE, pdf(CERT), "c.pdf")
++        self.run_real_pipeline()
++        app.refresh_from_db(); doc.refresh_from_db()
++        self.assertEqual(app.ai_status, S.DOCUMENT_INVALID)
++        self.assertEqual(doc.status, SD.STATUS_PENDING)      # not read yet
++        self.assertTrue(doc.pdf_bytes)
++
++    def test_document_text_is_not_written_to_logs_or_worker_output(self):
++        secret = "ZZ-UNIQUE-SECRET-TOKEN-4711"
++        app = self.queue(native_pdf())
++        self.add(app, SD.TYPE_CERTIFICATE, pdf(CERT + [secret]), "c.pdf")
++        self.add(app, SD.TYPE_CERTIFICATE, b"%PDF-1.4 broken", "bad.pdf")
++        with self.assertLogs(level=logging.DEBUG) as logs:
++            logging.getLogger("talent.documents").info("sentinel")
++            _, output = self.run_real_pipeline()
++        self.assertNotIn(secret, "\n".join(logs.output))
++        self.assertNotIn(secret, output)
++
++
++# =====================================================================
++# Candidate detail page
++# =====================================================================
++
++class DetailPageTests(DocBase):
++
++    def test_documents_are_listed_and_review_flag_is_staff_only(self):
++        app = self.queue(native_pdf())
++        self.add(app, SD.TYPE_CERTIFICATE, b"%PDF-1.4 broken", "bad.pdf")
++        self.run_real_pipeline()
++        app.refresh_from_db()
++        self.assertEqual(app.ai_status, S.SUCCESS)
++
++        self.client.login(email="ti@x.com", password="pass12345")       # the candidate
++        page = self.client.get(reverse("candidate_detail", args=[app.id])).content.decode()
++        self.assertIn("Supporting Documents", page)
++        self.assertIn("bad.pdf", page)
++        self.assertNotIn("Flagged for human review", page)
++        self.client.logout()
++
++        hr = User.objects.create_user(
++            username="hr", password="pass12345", email="hr@x.com",
++            role=_make_role("HR Officer", ["recruitment_manage"]), is_verified=True)
++        self.client.login(email="hr@x.com", password="pass12345")
++        page = self.client.get(reverse("candidate_detail", args=[app.id])).content.decode()
++        self.assertIn("Flagged for human review", page)
++        self.assertIn("document_unreadable: bad.pdf", page)
+diff --git a/talent/unified.py b/talent/unified.py
+new file mode 100644
+index 0000000..4c7594c
+--- /dev/null
++++ b/talent/unified.py
+@@ -0,0 +1,389 @@
++"""
++Unified candidate object.
++
++build_unified() merges what the existing CV profile extraction produced
++with what was parsed from the supporting documents into ONE canonical
++dict, keeping the source of every item, flagging conflicts instead of
++resolving them, and listing why a human should look (review_reasons).
++
++enrich_profile() hands the existing screening pipeline a profile in the
++exact shape it already consumes (same keys, same types); it only adds
++certifications and, when the CV states no / an unclassifiable education
++level, the education found in the diploma.  Scoring, thresholds and the
++rule engine are not touched.
++
++Pure Python, no LLM call, no database writes.
++"""
++
++import copy
++import re
++from difflib import SequenceMatcher
++
++from .documents import _norm, level_of, LEVEL_LABELS
++from .models import ApplicationSupportingDocument
++
++T = ApplicationSupportingDocument
++
++SCHEMA_VERSION = 1
++
++
++def _name_tokens(name):
++    return {t for t in re.split(r"[^a-z]+", _norm(name)) if len(t) > 1}
++
++
++def names_match(a, b):
++    """True when two person names plausibly refer to the same person."""
++    ta, tb = _name_tokens(a), _name_tokens(b)
++    if not ta or not tb:
++        return True  # nothing to compare -> no claim of mismatch
++    overlap = len(ta & tb)
++    return overlap / min(len(ta), len(tb)) >= 0.5
++
++
++def _key(text):
++    return re.sub(r"[^a-z0-9]+", " ", _norm(text)).strip()
++
++
++def same_certification(a, b):
++    ka, kb = _key(a), _key(b)
++    if not ka or not kb:
++        return False
++    if ka == kb:
++        return True
++    if min(len(ka), len(kb)) >= 8 and (ka in kb or kb in ka):
++        return True
++    return SequenceMatcher(None, ka, kb).ratio() >= 0.85
++
++
++def _doc_ref(doc):
++    return {
++        "document_id": doc.pk,
++        "document_type": doc.doc_type,
++        "document": doc.original_name,
++    }
++
++
++def _with_ref(doc, evidence):
++    return [dict(ev, **_doc_ref(doc)) for ev in (evidence or [])]
++
++
++def build_unified(application, profile=None):
++    """
++    application: talent.models.Application (its candidate and its
++                 supporting documents are read, nothing is written)
++    profile:     dict returned by analyze_cv (or None before screening)
++    """
++
++    profile = profile or {}
++    candidate = application.candidate
++    docs = list(application.supporting_documents.all())
++    conflicts = []
++    review_reasons = []
++
++    cv_name = (
++        candidate.cv_file.name.rsplit("/", 1)[-1] if candidate.cv_file else None
++    )
++    cv_text = candidate.extracted_text or ""
++    cv_status = (
++        "missing" if not cv_text
++        else "low_quality" if cv_text.startswith("[OCR NOTICE:")
++        else "processed_with_notice" if cv_text.startswith("[EXTRACTION NOTICE:")
++        else "processed"
++    )
++    cv_ref = {"document_type": "cv", "document": cv_name}
++
++    unified = {
++        "schema_version": SCHEMA_VERSION,
++        "personal_information": {
++            "full_name": candidate.full_name or None,
++            "email": candidate.email or None,
++            "phone": candidate.phone or None,
++            "address": candidate.address or None,
++            "source": "candidate_record",
++        },
++        "education": [],
++        "work_experience": {
++            "years_experience": profile.get("years_experience"),
++            "entries": [],
++            "source": "cv" if profile else None,
++            "note": "The CV profile records total years only; no per-job "
++                    "entries are extracted by the current pipeline.",
++        },
++        "skills": [
++            {"name": str(s), "source": "cv"} for s in profile.get("skills", []) or []
++        ],
++        "certifications": [],
++        "languages": [
++            {"name": str(l), "source": "cv"} for l in profile.get("languages", []) or []
++        ],
++        "supporting_information": [],
++        "conflicts": conflicts,
++        "evidence": [],
++        "review_reasons": review_reasons,
++        "needs_human_review": False,
++        "document_processing_status": {},
++    }
++
++    # ---------------- document processing status ----------------
++
++    statuses = []
++    for d in docs:
++        statuses.append({
++            "document_id": d.pk,
++            "document_type": d.doc_type,
++            "document": d.original_name,
++            "status": d.status,
++            "error": d.error_message or None,
++            "extraction_method": d.extraction_method or None,
++            "pages": d.page_count,
++            "extraction_seconds": d.extraction_seconds,
++        })
++        if d.status == T.STATUS_FAILED:
++            review_reasons.append(
++                f"document_unreadable: {d.original_name} ({d.get_doc_type_display()})")
++        elif d.status == T.STATUS_LOW_QUALITY:
++            review_reasons.append(
++                f"document_low_scan_quality: {d.original_name} ({d.get_doc_type_display()})")
++
++    uploaded_types = {d.doc_type for d in docs}
++    unified["document_processing_status"] = {
++        "cv": {"status": cv_status, **cv_ref},
++        "documents": statuses,
++        "optional_not_uploaded": [
++            t for t, _ in T.TYPE_CHOICES
++            if t not in uploaded_types
++        ],
++        "note": "A missing optional document is not treated as evidence that "
++                "the candidate lacks the qualification.",
++    }
++    if cv_status == "low_quality":
++        review_reasons.append("document_low_scan_quality: CV")
++    elif cv_status == "processed_with_notice":
++        review_reasons.append("document_partly_read: CV")
++
++    usable = [d for d in docs if d.status != T.STATUS_FAILED]
++
++    # ---------------- holder-name check (all document types) ----------------
++
++    for d in usable:
++        holder = (d.parsed or {}).get("holder_name")
++        if holder and not names_match(holder, candidate.full_name):
++            conflicts.append({
++                "type": "holder_name_mismatch",
++                "field": "personal_information.full_name",
++                "values": [
++                    {"source": "candidate_record", "value": candidate.full_name},
++                    {"source": d.doc_type, "document": d.original_name,
++                     "document_id": d.pk, "value": holder},
++                ],
++                "status": "needs_human_review",
++            })
++            review_reasons.append(
++                f"conflict: name on {d.original_name} differs from the applicant's name")
++
++    # ---------------- education ----------------
++
++    cv_education = (profile.get("education") or "").strip()
++    cv_level = level_of(cv_education) if cv_education else None
++    cv_entry = None
++    if cv_education:
++        cv_entry = {
++            "level": cv_level,
++            "level_label": LEVEL_LABELS.get(cv_level),
++            "statement": cv_education,
++            "field": None,
++            "institution": None,
++            "year": None,
++            "sources": ["cv"],
++            "evidence": [dict(cv_ref, field="education", quote=None, page=None,
++                              note="Read by the CV profile extraction; not a verbatim quote.")],
++        }
++
++    edu_docs = [d for d in usable if d.doc_type == T.TYPE_EDUCATION]
++    doc_entries = []
++    for d in edu_docs:
++        for item in (d.parsed or {}).get("education", []):
++            doc_entries.append((d, item))
++
++    merged_cv = False
++    for d, item in doc_entries:
++        entry = {
++            "level": item.get("level"),
++            "level_label": item.get("level_label"),
++            "statement": None,
++            "field": item.get("field"),
++            "institution": item.get("institution"),
++            "year": item.get("year"),
++            "sources": [d.doc_type],
++            "evidence": _with_ref(d, item.get("evidence")),
++        }
++        if cv_entry is not None and not merged_cv:
++            if cv_level and entry["level"] and cv_level == entry["level"]:
++                entry["statement"] = cv_education
++                entry["sources"] = ["cv", d.doc_type]
++                entry["evidence"] = cv_entry["evidence"] + entry["evidence"]
++                merged_cv = True
++            elif cv_level and entry["level"] and cv_level != entry["level"]:
++                conflicts.append({
++                    "type": "education_level_mismatch",
++                    "field": "education.level",
++                    "values": [
++                        {"source": "cv", "value": cv_education, "level": cv_level},
++                        {"source": d.doc_type, "document": d.original_name,
++                         "document_id": d.pk, "value": entry["level_label"],
++                         "level": entry["level"]},
++                    ],
++                    "status": "needs_human_review",
++                })
++                review_reasons.append(
++                    "conflict: education level in the CV differs from the "
++                    "education certificate")
++        unified["education"].append(entry)
++
++    if cv_entry is not None and not merged_cv:
++        unified["education"].insert(0, cv_entry)
++
++    # ---------------- certifications ----------------
++
++    certs = []  # {"name","issuer","issued_date","expiry_date","sources":[...],"evidence":[...]}
++
++    for c in profile.get("certifications", []) or []:
++        name = c.get("name") if isinstance(c, dict) else str(c)
++        name = (name or "").strip()
++        if not name:
++            continue
++        if any(same_certification(name, x["name"]) for x in certs):
++            continue
++        certs.append({
++            "name": name, "issuer": None, "issued_date": None,
++            "expiry_date": None, "sources": ["cv"],
++            "evidence": [dict(cv_ref, field="name", quote=None, page=None,
++                              note="Listed in the CV profile.")],
++        })
++
++    for d in [x for x in usable if x.doc_type == T.TYPE_CERTIFICATE]:
++        for item in (d.parsed or {}).get("certifications", []):
++            match = next((x for x in certs
++                          if same_certification(item["name"], x["name"])), None)
++            if match is None:
++                certs.append({
++                    "name": item["name"], "issuer": item.get("issuer"),
++                    "issued_date": item.get("issued_date"),
++                    "expiry_date": item.get("expiry_date"),
++                    "sources": [d.doc_type],
++                    "evidence": _with_ref(d, item.get("evidence")),
++                })
++                continue
++
++            # Same certification seen before: one entry, extra source.
++            if d.doc_type not in match["sources"]:
++                match["sources"].append(d.doc_type)
++            match["evidence"] += _with_ref(d, item.get("evidence"))
++            for fld in ("issuer", "issued_date", "expiry_date"):
++                new, old = item.get(fld), match.get(fld)
++                if new and not old:
++                    match[fld] = new
++                elif new and old and _norm(new) != _norm(old):
++                    conflicts.append({
++                        "type": "certification_detail_mismatch",
++                        "field": f"certifications.{fld}",
++                        "values": [
++                            {"source": "earlier_document", "value": old},
++                            {"source": d.doc_type, "document": d.original_name,
++                             "document_id": d.pk, "value": new},
++                        ],
++                        "status": "needs_human_review",
++                    })
++                    review_reasons.append(
++                        f"conflict: {fld.replace('_', ' ')} differs between "
++                        f"documents for '{match['name']}'")
++
++    unified["certifications"] = certs
++
++    # ---------------- supporting information ----------------
++
++    for d in docs:
++        if d.doc_type == T.TYPE_SUPPORTING:
++            unified["supporting_information"].append({
++                **_doc_ref(d),
++                "status": d.status,
++                "title": (d.parsed or {}).get("title"),
++                "pages": d.page_count,
++            })
++
++    # ---------------- flat evidence list ----------------
++
++    flat = []
++    for e in unified["education"]:
++        for ev in e["evidence"]:
++            flat.append({"claim": f"education.{ev.get('field')}", **ev})
++    for c in certs:
++        for ev in c["evidence"]:
++            flat.append({"claim": f"certification.{ev.get('field')}: {c['name']}", **ev})
++    unified["evidence"] = flat
++
++    unified["review_reasons"] = list(dict.fromkeys(review_reasons))
++    unified["needs_human_review"] = bool(unified["review_reasons"])
++
++    return unified
++
++
++def enrich_profile(profile, unified):
++    """
++    Return a copy of the CV profile enriched with document-derived data, in
++    the shape the existing screening pipeline already expects.
++    """
++
++    enriched = copy.deepcopy(profile)
++
++    # certifications: CV list + document certifications the CV did not list
++    existing = [str(c) for c in enriched.get("certifications", []) or []]
++    added = []
++    for c in unified.get("certifications", []):
++        if "cv" in c["sources"]:
++            continue
++        if not any(same_certification(c["name"], e) for e in existing):
++            existing.append(c["name"])
++            added.append(c["name"])
++    enriched["certifications"] = existing
++
++    # education: only fill a gap, never overwrite a stated level
++    doc_edu = next(
++        (e for e in unified.get("education", [])
++         if "education_certificate" in e["sources"] and e.get("level")),
++        None,
++    )
++    education_source = "cv"
++    if doc_edu is not None:
++        has_conflict = any(
++            c["type"] == "education_level_mismatch" for c in unified.get("conflicts", [])
++        )
++        cv_text = (enriched.get("education") or "").strip()
++        cv_level = level_of(cv_text) if cv_text else None
++        label = doc_edu["level_label"] + (
++            f" in {doc_edu['field']}" if doc_edu.get("field") else "")
++        if not has_conflict:
++            if not cv_text:
++                enriched["education"] = label
++                education_source = "education_certificate"
++            elif cv_level is None:
++                enriched["education"] = f"{cv_text} ({label}, per education certificate)"
++                education_source = "cv+education_certificate"
++
++    unified["enrichment"] = {
++        "certifications_added_from_documents": added,
++        "education_source": education_source,
++    }
++
++    return enriched
++
++
++def review_summary(unified):
++    """Compact form stored on the Application next to the other AI context."""
++    return {
++        "needs_human_review": unified.get("needs_human_review", False),
++        "review_reasons": unified.get("review_reasons", []),
++        "conflicts": unified.get("conflicts", []),
++        "documents": unified.get("document_processing_status", {}).get("documents", []),
++        "enrichment": unified.get("enrichment", {}),
++    }
+diff --git a/talent/views.py b/talent/views.py
+index 6d7d32a..b737e48 100644
+--- a/talent/views.py
++++ b/talent/views.py
+@@ -35,6 +35,7 @@ from .models import (
+ )
+ from . import statuses as S
+ from .notifications import application_detail_url
++from .documents import validate_uploads, store_supporting_documents
+ from ai_engine.services.document_extraction.structure import (
+     check_pdf_structure,
+ )
+@@ -332,6 +333,9 @@ def candidate_detail(request, application_id):
+         # visible to administrators only (same roles as final decision),
+         # never to candidates or other staff roles.
+         "can_view_audit": _can_make_final_decision(request.user),
++        "is_staff_reviewer": is_staff,
++        "supporting_documents": list(application.supporting_documents.all()),
++        "document_review": (application.ai_rag_context or {}).get("document_review"),
+     }
+     return render(
+         request,
+@@ -561,6 +565,26 @@ def apply_job(request, job_id):
+                 job_id=job.id
+             )
+ 
++        # Optional supporting documents (ijazah, certificates, other).
++        # Same rule as the CV: a document that is not a usable PDF is
++        # rejected now, before anything is stored; a document that is
++        # valid but unreadable later is recorded and flagged, and never
++        # blocks the application.
++        supporting_items, supporting_error = validate_uploads(
++            request.FILES.get("education_file"),
++            request.FILES.getlist("certificate_files"),
++            request.FILES.getlist("supporting_files"),
++        )
++
++        if supporting_error:
++
++            messages.error(request, supporting_error)
++
++            return redirect(
++                "apply_job",
++                job_id=job.id
++            )
++
+         try:
+             with transaction.atomic():
+ 
+@@ -636,6 +660,8 @@ def apply_job(request, job_id):
+                     }
+                 )
+ 
++                store_supporting_documents(application, supporting_items)
++
+         except (_AlreadyApplied, IntegrityError, OperationalError) as error:
+             # IntegrityError: a concurrent request created the same
+             # (candidate, job) application first.
+@@ -675,6 +701,14 @@ def apply_job(request, job_id):
+             "and can upload a clearer one."
+         )
+ 
++        if supporting_items:
++            messages.info(
++                request,
++                f"{len(supporting_items)} supporting document(s) were "
++                "received and will be read together with your CV: "
++                + ", ".join(i["name"] for i in supporting_items)
++            )
++
+         return redirect(
+             "job_detail",
+             job_id=job.id

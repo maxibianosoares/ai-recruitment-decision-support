@@ -459,7 +459,9 @@ class ApplyJobWebTests(TaskIBase):
             self.url,
             {"full_name": "Maria da Silva", "email": "ti@x.com",
              "cv_file": SimpleUploadedFile(
-                 name, data, content_type="application/pdf")},
+                 name, data, content_type="application/pdf"),
+             "education_file": SimpleUploadedFile(
+                 "diploma.pdf", native_pdf(), content_type="application/pdf")},
             follow=True,
         )
 
@@ -604,7 +606,9 @@ class LimitsAndCompletenessTests(TaskIBase):
             {"full_name": "Maria da Silva", "email": "ti@x.com",
              "cv_file": SimpleUploadedFile(
                  "cv.pdf", self._digital_n(51),
-                 content_type="application/pdf")},
+                 content_type="application/pdf"),
+             "education_file": SimpleUploadedFile(
+                 "diploma.pdf", native_pdf(), content_type="application/pdf")},
         )
         self.assertFalse(Application.objects.filter(job=self.job).exists())
         self.assertFalse(ApplicationDocument.objects.exists())
@@ -731,6 +735,9 @@ class RobustnessTests(TaskIBase):
                 {"full_name": "Maria da Silva", "email": "ti@x.com",
                  "cv_file": SimpleUploadedFile(
                      "cv.pdf", native_pdf(),
+                     content_type="application/pdf"),
+                 "education_file": SimpleUploadedFile(
+                     "diploma.pdf", native_pdf(),
                      content_type="application/pdf")},
                 follow=True,
             )
@@ -763,6 +770,9 @@ class RobustnessTests(TaskIBase):
                 {"full_name": "Maria da Silva", "email": "ti@x.com",
                  "cv_file": SimpleUploadedFile(
                      "cv.pdf", native_pdf(),
+                     content_type="application/pdf"),
+                 "education_file": SimpleUploadedFile(
+                     "diploma.pdf", native_pdf(),
                      content_type="application/pdf")},
                 follow=True,
             )
@@ -782,6 +792,9 @@ class RobustnessTests(TaskIBase):
                 {"full_name": "Maria da Silva", "email": "ti@x.com",
                  "cv_file": SimpleUploadedFile(
                      "cv.pdf", native_pdf(),
+                     content_type="application/pdf"),
+                 "education_file": SimpleUploadedFile(
+                     "diploma.pdf", native_pdf(),
                      content_type="application/pdf")},
             )
         self.assertEqual(resp.status_code, 500)

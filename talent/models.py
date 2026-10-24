@@ -289,6 +289,15 @@ class Application(models.Model):
         blank=True
     )
 
+    # Multi-document upload: the single canonical candidate object for
+    # THIS application -- CV profile plus every supporting document,
+    # with sources, evidence and conflicts (see talent/unified.py).
+    # Filled by the pipeline; {} until then and for legacy rows.
+    unified_candidate = models.JSONField(
+        default=dict,
+        blank=True
+    )
+
     # =====================================================
     # APPLICATION STATUS
     # =====================================================
@@ -362,6 +371,115 @@ class ApplicationDocument(models.Model):
 
     def __str__(self):
         return f"Document for application {self.application_id}"
+
+
+class ApplicationSupportingDocument(models.Model):
+    """
+    An optional document uploaded together with the CV: the latest
+    education certificate / diploma, a certificate, or another
+    supporting document.
+
+    Same shape as ApplicationDocument (the CV): the web request only
+    stores the PDF bytes here, because the worker is a separate
+    container and cannot read the web server's disk. The worker reads
+    each pending document once (document_extraction.orchestrator),
+    parses it (talent/documents.py), keeps the TEXT, parsed fields and
+    status for human review, and releases the bytes.
+    """
+
+    TYPE_EDUCATION = "education_certificate"
+    TYPE_CERTIFICATE = "certificate"
+    TYPE_SUPPORTING = "supporting"
+
+    TYPE_CHOICES = [
+        (TYPE_EDUCATION, "Latest Education Certificate / Diploma"),
+        (TYPE_CERTIFICATE, "Certificate"),
+        (TYPE_SUPPORTING, "Other Supporting Document"),
+    ]
+
+    STATUS_PENDING = "pending"
+    STATUS_PROCESSED = "processed"
+    STATUS_LOW_QUALITY = "low_quality"
+    STATUS_FAILED = "failed"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Waiting to be read"),
+        (STATUS_PROCESSED, "Processed"),
+        (STATUS_LOW_QUALITY, "Processed (low quality)"),
+        (STATUS_FAILED, "Could not be read"),
+    ]
+
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="supporting_documents"
+    )
+
+    doc_type = models.CharField(
+        max_length=30,
+        choices=TYPE_CHOICES
+    )
+
+    pdf_bytes = models.BinaryField(
+        null=True,
+        blank=True
+    )
+
+    original_name = models.CharField(
+        max_length=255
+    )
+
+    sha256 = models.CharField(
+        max_length=64,
+        db_index=True
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING
+    )
+
+    error_message = models.TextField(
+        blank=True,
+        default=""
+    )
+
+    extracted_text = models.TextField(
+        blank=True,
+        default=""
+    )
+
+    # Structured fields found in extracted_text; every item carries its
+    # own evidence (page, quote). Empty until processed.
+    parsed = models.JSONField(
+        default=dict,
+        blank=True
+    )
+
+    extraction_method = models.CharField(
+        max_length=40,
+        blank=True,
+        default=""
+    )
+
+    page_count = models.PositiveIntegerField(
+        default=0
+    )
+
+    extraction_seconds = models.FloatField(
+        default=0
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        ordering = ["doc_type", "created_at"]
+
+    def __str__(self):
+        return f"{self.get_doc_type_display()}: {self.original_name}"
 
 
 class HumanDecision(models.Model):

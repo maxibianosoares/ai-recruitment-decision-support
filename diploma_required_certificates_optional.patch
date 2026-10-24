@@ -1,0 +1,265 @@
+diff --git a/talent/documents.py b/talent/documents.py
+index baae8b2..b82e16f 100644
+--- a/talent/documents.py
++++ b/talent/documents.py
+@@ -40,7 +40,6 @@ logger = logging.getLogger(__name__)
+ MAX_DOC_FILE_SIZE_BYTES = 5 * 1024 * 1024   # same limit as the CV upload
+ MAX_SUPPORTING_TOTAL_BYTES = 20 * 1024 * 1024
+ MAX_CERTIFICATES = 10
+-MAX_SUPPORTING = 5
+ 
+ NOTICE_PREFIXES = ("[OCR NOTICE:", "[EXTRACTION NOTICE:")
+ 
+@@ -57,9 +56,10 @@ def _safe_name(name):
+     return name[:200] or "document.pdf"
+ 
+ 
+-def validate_uploads(education_file, certificate_files, supporting_files):
++def validate_uploads(education_file, certificate_files):
+     """
+-    Validate every optional upload before anything is stored.
++    Validate the diploma (required) and the certificates (optional)
++    before anything is stored.
+ 
+     Returns (items, error).  error is a user-facing message (the whole
+     submission is then rejected, like an invalid CV) or None; items is a
+@@ -70,15 +70,12 @@ def validate_uploads(education_file, certificate_files, supporting_files):
+ 
+     if len(certificate_files) > MAX_CERTIFICATES:
+         return [], f"You can upload at most {MAX_CERTIFICATES} certificates."
+-    if len(supporting_files) > MAX_SUPPORTING:
+-        return [], (f"You can upload at most {MAX_SUPPORTING} other "
+-                    f"supporting documents.")
++    if not education_file:
++        return [], ("Please upload your latest education certificate / "
++                    "diploma (PDF).")
+ 
+-    wanted = []
+-    if education_file:
+-        wanted.append((T.TYPE_EDUCATION, education_file))
++    wanted = [(T.TYPE_EDUCATION, education_file)]
+     wanted += [(T.TYPE_CERTIFICATE, f) for f in certificate_files]
+-    wanted += [(T.TYPE_SUPPORTING, f) for f in supporting_files]
+ 
+     items, seen, total = [], set(), 0
+ 
+diff --git a/talent/templates/talent/apply_job.html b/talent/templates/talent/apply_job.html
+index 8f802f6..9408e34 100644
+--- a/talent/templates/talent/apply_job.html
++++ b/talent/templates/talent/apply_job.html
+@@ -1,10 +1,9 @@
+ {% extends 'base.html' %}
+ {% block title %}Apply · {{ job.title }}{% endblock %}
+ {% block content %}<div class="row justify-content-center"><div class="col-lg-8"><div class="page-header"><div class="page-kicker">Application</div><h1 class="fw-bold">Apply for {{ job.title }}</h1><p class="text-muted">Review your details below and upload your CV in PDF format.</p></div><div class="page-card p-4"><form method="POST" enctype="multipart/form-data">{% csrf_token %}<div class="row g-3"><div class="col-md-6"><div class="text-muted small">Full Name</div><div class="fw-semibold">{{ applicant_full_name }}</div></div><div class="col-md-6"><div class="text-muted small">Email</div><div class="fw-semibold">{{ applicant_email }}</div></div><div class="col-12"><div class="form-text mb-3">This is the name and email on your account. To change it, update your <a href="{% url 'profile' %}">profile</a> first.</div><label class="form-label fw-semibold">CV PDF</label><input type="file" name="cv_file" class="form-control" accept=".pdf,application/pdf" required><div class="form-text">Please upload a PDF CV.</div></div>
+-<div class="col-12"><hr class="my-1"><div class="fw-semibold">Supporting documents <span class="text-muted fw-normal">(optional)</span></div><div class="form-text mb-2">PDF only, up to 5MB each. Leaving a field empty is fine &mdash; a missing document is never counted against you. Documents are read in the background together with your CV.</div></div>
+-<div class="col-12"><label class="form-label fw-semibold" for="education_file">Latest Education Certificate / Diploma</label><input type="file" id="education_file" name="education_file" class="form-control" accept=".pdf,application/pdf" data-list="education_list"><ul class="small text-muted mb-0 mt-1" id="education_list"></ul></div>
+-<div class="col-12"><label class="form-label fw-semibold" for="certificate_files">Certificates</label><input type="file" id="certificate_files" name="certificate_files" class="form-control" accept=".pdf,application/pdf" multiple data-list="certificate_list"><div class="form-text">Training, professional or skill certificates. You can select several files (up to 10).</div><ul class="small text-muted mb-0 mt-1" id="certificate_list"></ul></div>
+-<div class="col-12"><label class="form-label fw-semibold" for="supporting_files">Other Supporting Documents</label><input type="file" id="supporting_files" name="supporting_files" class="form-control" accept=".pdf,application/pdf" multiple data-list="supporting_list"><div class="form-text">Up to 5 files.</div><ul class="small text-muted mb-0 mt-1" id="supporting_list"></ul></div>
++<div class="col-12"><hr class="my-1"><div class="fw-semibold">Supporting documents</div><div class="form-text mb-2">PDF only, up to 5MB each. The diploma is required; certificates are optional, and not having any is never counted against you. Documents are read in the background together with your CV.</div></div>
++<div class="col-12"><label class="form-label fw-semibold" for="education_file">Latest Education Certificate / Diploma <span class="text-danger">*</span></label><input type="file" id="education_file" name="education_file" class="form-control" accept=".pdf,application/pdf" required data-list="education_list"><ul class="small text-muted mb-0 mt-1" id="education_list"></ul></div>
++<div class="col-12"><label class="form-label fw-semibold" for="certificate_files">Certificates <span class="text-muted fw-normal">(optional)</span></label><input type="file" id="certificate_files" name="certificate_files" class="form-control" accept=".pdf,application/pdf" multiple data-list="certificate_list"><div class="form-text">Training, professional or skill certificates. You can select several files (up to 10).</div><ul class="small text-muted mb-0 mt-1" id="certificate_list"></ul></div>
+ </div><button class="btn btn-tl mt-4">Submit Application</button></form></div></div></div>
+ <script>
+ document.querySelectorAll('input[type=file][data-list]').forEach(function (input) {
+diff --git a/talent/test_documents.py b/talent/test_documents.py
+index 1ef3738..ebe8eeb 100644
+--- a/talent/test_documents.py
++++ b/talent/test_documents.py
+@@ -329,17 +329,29 @@ class ApplyWebTests(DocBase):
+     def post(self, **files):
+         data = {"cv_file": SimpleUploadedFile("cv.pdf", native_pdf(),
+                                               content_type="application/pdf")}
++        data["education_file"] = SimpleUploadedFile(
++            "diploma.pdf", pdf(DIPLOMA), content_type="application/pdf")
+         data.update(files)
++        if data.get("education_file") is None:
++            data.pop("education_file")
+         return self.client.post(self.url, data, follow=True)
+ 
+     @staticmethod
+     def up(name, data):
+         return SimpleUploadedFile(name, data, content_type="application/pdf")
+ 
+-    def test_form_shows_all_four_inputs(self):
++    def test_form_shows_three_inputs_and_no_other_supporting_documents(self):
+         html = self.client.get(self.url).content.decode()
+-        for name in ("cv_file", "education_file", "certificate_files", "supporting_files"):
++        for name in ("cv_file", "education_file", "certificate_files"):
+             self.assertIn(f'name="{name}"', html)
++        self.assertNotIn("supporting_files", html)
++        self.assertNotIn("Other Supporting Documents", html)
++        import re
++        tag = {n: re.search(r'<input[^>]*name="%s"[^>]*>' % n, html).group(0)
++               for n in ("cv_file", "education_file", "certificate_files")}
++        self.assertIn("required", tag["cv_file"])
++        self.assertIn("required", tag["education_file"])
++        self.assertNotIn("required", tag["certificate_files"])
+ 
+     # 10. valid set is queued; nothing is read in the request
+     def test_valid_documents_are_stored_and_nothing_is_extracted_in_the_request(self):
+@@ -347,24 +359,35 @@ class ApplyWebTests(DocBase):
+             resp = self.post(
+                 education_file=self.up("diploma.pdf", pdf(DIPLOMA)),
+                 certificate_files=[self.up("c1.pdf", pdf(CERT)),
+-                                   self.up("c2.pdf", pdf(CERT2))],
+-                supporting_files=[self.up("ref.pdf", pdf(["Reference letter"]))])
++                                   self.up("c2.pdf", pdf(CERT2))])
+         extract.assert_not_called()
+         app = Application.objects.get(job=self.job)
+         self.assertEqual(app.ai_status, S.QUEUED)
+         docs = app.supporting_documents.all()
+-        self.assertEqual(docs.count(), 4)
++        self.assertEqual(docs.count(), 3)
+         self.assertTrue(all(d.pdf_bytes and d.status == SD.STATUS_PENDING for d in docs))
+         text = " ".join(str(m) for m in resp.context["messages"])
+         self.assertIn("diploma.pdf", text)
+         self.assertIn("c2.pdf", text)
+ 
+-    def test_cv_only_is_unchanged(self):
+-        self.post()
++    def test_certificates_are_optional(self):
++        self.post()  # CV + diploma only
+         app = Application.objects.get(job=self.job)
+-        self.assertEqual(app.supporting_documents.count(), 0)
++        self.assertEqual(
++            list(app.supporting_documents.values_list("doc_type", flat=True)),
++            [SD.TYPE_EDUCATION])
+         self.assertEqual(app.ai_status, S.QUEUED)
+ 
++    def test_diploma_is_required(self):
++        resp = self.post(education_file=None)
++        self.assertFalse(Application.objects.filter(job=self.job).exists())
++        text = " ".join(str(m) for m in resp.context["messages"])
++        self.assertIn("diploma", text.lower())
++
++    def test_invalid_diploma_rejects_the_submission(self):
++        self.post(education_file=self.up("d.pdf", b"hello world"))
++        self.assertFalse(Application.objects.filter(job=self.job).exists())
++
+     def test_invalid_file_rejects_the_whole_submission(self):
+         bad_inputs = {
+             "not a pdf extension": self.up("notes.txt", b"hello"),
+@@ -387,9 +410,10 @@ class ApplyWebTests(DocBase):
+     def test_identical_files_are_stored_once(self):
+         data = pdf(CERT)
+         items, error = validate_uploads(
+-            None, [self.up("a.pdf", data), self.up("b.pdf", data)], [])
++            self.up("d.pdf", pdf(DIPLOMA)),
++            [self.up("a.pdf", data), self.up("b.pdf", data)])
+         self.assertIsNone(error)
+-        self.assertEqual(len(items), 1)
++        self.assertEqual(len(items), 2)  # diploma + one certificate
+ 
+     def test_reupload_after_cv_failure_replaces_that_document_type(self):
+         self.post(education_file=self.up("old.pdf", pdf(DIPLOMA)))
+diff --git a/talent/test_task_i.py b/talent/test_task_i.py
+index 9536eab..00e1c19 100644
+--- a/talent/test_task_i.py
++++ b/talent/test_task_i.py
+@@ -459,7 +459,9 @@ class ApplyJobWebTests(TaskIBase):
+             self.url,
+             {"full_name": "Maria da Silva", "email": "ti@x.com",
+              "cv_file": SimpleUploadedFile(
+-                 name, data, content_type="application/pdf")},
++                 name, data, content_type="application/pdf"),
++             "education_file": SimpleUploadedFile(
++                 "diploma.pdf", native_pdf(), content_type="application/pdf")},
+             follow=True,
+         )
+ 
+@@ -604,7 +606,9 @@ class LimitsAndCompletenessTests(TaskIBase):
+             {"full_name": "Maria da Silva", "email": "ti@x.com",
+              "cv_file": SimpleUploadedFile(
+                  "cv.pdf", self._digital_n(51),
+-                 content_type="application/pdf")},
++                 content_type="application/pdf"),
++             "education_file": SimpleUploadedFile(
++                 "diploma.pdf", native_pdf(), content_type="application/pdf")},
+         )
+         self.assertFalse(Application.objects.filter(job=self.job).exists())
+         self.assertFalse(ApplicationDocument.objects.exists())
+@@ -731,6 +735,9 @@ class RobustnessTests(TaskIBase):
+                 {"full_name": "Maria da Silva", "email": "ti@x.com",
+                  "cv_file": SimpleUploadedFile(
+                      "cv.pdf", native_pdf(),
++                     content_type="application/pdf"),
++                 "education_file": SimpleUploadedFile(
++                     "diploma.pdf", native_pdf(),
+                      content_type="application/pdf")},
+                 follow=True,
+             )
+@@ -763,6 +770,9 @@ class RobustnessTests(TaskIBase):
+                 {"full_name": "Maria da Silva", "email": "ti@x.com",
+                  "cv_file": SimpleUploadedFile(
+                      "cv.pdf", native_pdf(),
++                     content_type="application/pdf"),
++                 "education_file": SimpleUploadedFile(
++                     "diploma.pdf", native_pdf(),
+                      content_type="application/pdf")},
+                 follow=True,
+             )
+@@ -782,6 +792,9 @@ class RobustnessTests(TaskIBase):
+                 {"full_name": "Maria da Silva", "email": "ti@x.com",
+                  "cv_file": SimpleUploadedFile(
+                      "cv.pdf", native_pdf(),
++                     content_type="application/pdf"),
++                 "education_file": SimpleUploadedFile(
++                     "diploma.pdf", native_pdf(),
+                      content_type="application/pdf")},
+             )
+         self.assertEqual(resp.status_code, 500)
+diff --git a/talent/tests.py b/talent/tests.py
+index 8a609f6..23a91fc 100644
+--- a/talent/tests.py
++++ b/talent/tests.py
+@@ -192,7 +192,8 @@ class SelfApplicationTests(TestCase):
+ 
+         resp = self.client.post(
+             reverse("apply_job", kwargs={"job_id": self.job.id}),
+-            {"full_name": "Applicant One", "email": "applicant1@x.com", "cv_file": cv},
++            {"full_name": "Applicant One", "email": "applicant1@x.com", "cv_file": cv,
++             "education_file": SimpleUploadedFile("diploma.pdf", _native_pdf_bytes(), content_type="application/pdf")},
+             follow=True
+         )
+ 
+@@ -280,7 +281,8 @@ class AsyncApplyJobTests(TestCase):
+                 {
+                     "full_name": "Async Applicant",
+                     "email": "asyncapplicant@x.com",
+-                    "cv_file": cv
++                    "cv_file": cv,
++                    "education_file": SimpleUploadedFile("diploma.pdf", _native_pdf_bytes(), content_type="application/pdf")
+                 },
+                 follow=True
+             )
+@@ -570,7 +572,8 @@ class DocumentQualityGateTests(TestCase):
+             {
+                 "full_name": "Bad Doc",
+                 "email": "baddocuser@x.com",
+-                "cv_file": bad_file
++                "cv_file": bad_file,
++                "education_file": SimpleUploadedFile("diploma.pdf", _native_pdf_bytes(), content_type="application/pdf")
+             },
+             follow=True
+         )
+diff --git a/talent/views.py b/talent/views.py
+index b737e48..98bfed5 100644
+--- a/talent/views.py
++++ b/talent/views.py
+@@ -565,7 +565,7 @@ def apply_job(request, job_id):
+                 job_id=job.id
+             )
+ 
+-        # Optional supporting documents (ijazah, certificates, other).
++        # Diploma (required) and certificates (optional).
+         # Same rule as the CV: a document that is not a usable PDF is
+         # rejected now, before anything is stored; a document that is
+         # valid but unreadable later is recorded and flagged, and never
+@@ -573,7 +573,6 @@ def apply_job(request, job_id):
+         supporting_items, supporting_error = validate_uploads(
+             request.FILES.get("education_file"),
+             request.FILES.getlist("certificate_files"),
+-            request.FILES.getlist("supporting_files"),
+         )
+ 
+         if supporting_error:

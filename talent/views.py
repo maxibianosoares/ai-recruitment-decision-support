@@ -35,6 +35,7 @@ from .models import (
 )
 from . import statuses as S
 from .notifications import application_detail_url
+from .documents import validate_uploads, store_supporting_documents
 from ai_engine.services.document_extraction.structure import (
     check_pdf_structure,
 )
@@ -332,6 +333,9 @@ def candidate_detail(request, application_id):
         # visible to administrators only (same roles as final decision),
         # never to candidates or other staff roles.
         "can_view_audit": _can_make_final_decision(request.user),
+        "is_staff_reviewer": is_staff,
+        "supporting_documents": list(application.supporting_documents.all()),
+        "document_review": (application.ai_rag_context or {}).get("document_review"),
     }
     return render(
         request,
@@ -561,6 +565,25 @@ def apply_job(request, job_id):
                 job_id=job.id
             )
 
+        # Diploma (required) and certificates (optional).
+        # Same rule as the CV: a document that is not a usable PDF is
+        # rejected now, before anything is stored; a document that is
+        # valid but unreadable later is recorded and flagged, and never
+        # blocks the application.
+        supporting_items, supporting_error = validate_uploads(
+            request.FILES.get("education_file"),
+            request.FILES.getlist("certificate_files"),
+        )
+
+        if supporting_error:
+
+            messages.error(request, supporting_error)
+
+            return redirect(
+                "apply_job",
+                job_id=job.id
+            )
+
         try:
             with transaction.atomic():
 
@@ -636,6 +659,8 @@ def apply_job(request, job_id):
                     }
                 )
 
+                store_supporting_documents(application, supporting_items)
+
         except (_AlreadyApplied, IntegrityError, OperationalError) as error:
             # IntegrityError: a concurrent request created the same
             # (candidate, job) application first.
@@ -674,6 +699,14 @@ def apply_job(request, job_id):
             "for progress. If your CV cannot be read, you will be told "
             "and can upload a clearer one."
         )
+
+        if supporting_items:
+            messages.info(
+                request,
+                f"{len(supporting_items)} supporting document(s) were "
+                "received and will be read together with your CV: "
+                + ", ".join(i["name"] for i in supporting_items)
+            )
 
         return redirect(
             "job_detail",

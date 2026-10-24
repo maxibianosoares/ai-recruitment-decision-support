@@ -401,6 +401,46 @@ def recruitment_pipeline(application):
         t_profile = perf_counter()
 
         # =====================================
+        # STEP 1.5 (multi-document upload)
+        # Merge the supporting documents already read by the worker
+        # into one unified candidate object, and give the rule engine
+        # the SAME profile shape it always got (only certifications and
+        # a missing education level are filled from documents). Pure
+        # Python, no LLM call, nothing is read again. An application
+        # with no supporting documents gets its profile back unchanged.
+        # Never blocks screening: on any error the CV profile is used
+        # exactly as before. The shared/cached `profile` object is not
+        # modified (enrich_profile works on a copy).
+        # =====================================
+
+        unified_candidate = {}
+
+        document_review = None
+
+        try:
+
+            from talent.unified import (
+                build_unified, enrich_profile, review_summary
+            )
+
+            unified_candidate = build_unified(application, profile)
+
+            profile = enrich_profile(profile, unified_candidate)
+
+            if application.supporting_documents.exists():
+                document_review = review_summary(unified_candidate)
+
+        except Exception as merge_error:
+
+            unified_candidate = {}
+
+            logger.warning(
+                "Unified candidate merge skipped (%s); screening "
+                "continues with the CV profile.",
+                type(merge_error).__name__
+            )
+
+        # =====================================
         # STEP 2
         # Deterministic Parallel Analysis
         # (Phase 20: no LLM call here anymore -- both of these are
@@ -558,6 +598,8 @@ def recruitment_pipeline(application):
 
         application.ai_profile = profile
 
+        application.unified_candidate = unified_candidate
+
         application.ai_job_profile = job_profile
 
         application.ai_rule_result = rule_result
@@ -591,6 +633,10 @@ def recruitment_pipeline(application):
                 if candidate_legal_evidence else {}
             ),
             "language_detection": language_result,
+            **(
+                {"document_review": document_review}
+                if document_review else {}
+            ),
             **(
                 {
                     "translation": {

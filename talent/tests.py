@@ -192,7 +192,8 @@ class SelfApplicationTests(TestCase):
 
         resp = self.client.post(
             reverse("apply_job", kwargs={"job_id": self.job.id}),
-            {"full_name": "Applicant One", "email": "applicant1@x.com", "cv_file": cv},
+            {"full_name": "Applicant One", "email": "applicant1@x.com", "cv_file": cv,
+             "education_file": SimpleUploadedFile("diploma.pdf", _native_pdf_bytes(), content_type="application/pdf")},
             follow=True
         )
 
@@ -280,7 +281,8 @@ class AsyncApplyJobTests(TestCase):
                 {
                     "full_name": "Async Applicant",
                     "email": "asyncapplicant@x.com",
-                    "cv_file": cv
+                    "cv_file": cv,
+                    "education_file": SimpleUploadedFile("diploma.pdf", _native_pdf_bytes(), content_type="application/pdf")
                 },
                 follow=True
             )
@@ -570,7 +572,8 @@ class DocumentQualityGateTests(TestCase):
             {
                 "full_name": "Bad Doc",
                 "email": "baddocuser@x.com",
-                "cv_file": bad_file
+                "cv_file": bad_file,
+                "education_file": SimpleUploadedFile("diploma.pdf", _native_pdf_bytes(), content_type="application/pdf")
             },
             follow=True
         )
