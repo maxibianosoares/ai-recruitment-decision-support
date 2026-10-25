@@ -32,6 +32,7 @@ from .models import (
     Candidate,
     Application,
     ApplicationDocument,
+    ApplicationCvFile,
     HumanDecision
 )
 from . import statuses as S
@@ -181,15 +182,49 @@ def _send_candidate_outcome_email(application, agreed_with_ai=True):
         )
 
 
-@login_required
-def supporting_document_file(request, application_id, document_id):
-    """
-    Open one uploaded supporting document (PDF) in the browser.
+def _cv_available(application):
+    if ApplicationCvFile.objects.filter(application=application).exists():
+        return True
+    cv = application.candidate.cv_file
+    try:
+        return bool(cv and cv.storage.exists(cv.name))
+    except (OSError, ValueError):
+        return False
 
+
+def _pdf_response(data, name):
+    """
+    Serve stored bytes to a reviewer: inline if it really is a PDF,
+    otherwise as a download (never rendered), private and not cached.
+    """
+
+    is_pdf = data[:5] == b"%PDF-"
+
+    response = HttpResponse(
+        data,
+        content_type="application/pdf" if is_pdf else "application/octet-stream"
+    )
+
+    # ASCII-only, no quotes or control characters in the header value.
+    safe_name = "".join(
+        c if (c.isascii() and c.isalnum()) or c in "._- " else "_"
+        for c in (name or "document.pdf")
+    )[:100] or "document.pdf"
+
+    response["Content-Disposition"] = (
+        f'{"inline" if is_pdf else "attachment"}; filename="{safe_name}"'
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Cache-Control"] = "private, no-store"
+
+    return response
+
+
+def _application_for_reviewer(request, application_id):
+    """
     Same access rule as candidate_detail: recruitment staff, or the
-    candidate who owns the application -- nobody else. Served inline
-    from the database (never from /media/), private, not cached, and
-    with sniffing disabled.
+    candidate who owns the application -- nobody else.
+    Returns (application, None) or (None, forbidden_response).
     """
 
     application = get_object_or_404(
@@ -205,9 +240,26 @@ def supporting_document_file(request, application_id, document_id):
     )
 
     if not (is_staff or is_owner):
-        return HttpResponseForbidden(
+        return None, HttpResponseForbidden(
             "You do not have permission to view this document."
         )
+
+    return application, None
+
+
+_NOT_STORED = (
+    "The original file is not stored (it was uploaded before file "
+    "storage was enabled)."
+)
+
+
+@login_required
+def supporting_document_file(request, application_id, document_id):
+    """Open one uploaded supporting document (PDF) in the browser."""
+
+    application, denied = _application_for_reviewer(request, application_id)
+    if denied:
+        return denied
 
     document = get_object_or_404(
         application.supporting_documents,
@@ -218,32 +270,43 @@ def supporting_document_file(request, application_id, document_id):
 
     if not data:
         return HttpResponse(
-            "The original file for this document is not stored "
-            "(it was uploaded before file storage was enabled).",
-            status=404,
+            _NOT_STORED, status=404,
             content_type="text/plain; charset=utf-8"
         )
 
-    is_pdf = data[:5] == b"%PDF-"
+    return _pdf_response(data, document.original_name)
 
-    response = HttpResponse(
-        data,
-        content_type="application/pdf" if is_pdf else "application/octet-stream"
+
+@login_required
+def application_cv_file(request, application_id):
+    """
+    Open the CV of this application. Uses the copy saved at submission;
+    for older applications falls back to the candidate's CV file on the
+    web server's disk if it is still there.
+    """
+
+    application, denied = _application_for_reviewer(request, application_id)
+    if denied:
+        return denied
+
+    copy = ApplicationCvFile.objects.filter(application=application).first()
+
+    if copy is not None and copy.pdf_bytes:
+        return _pdf_response(bytes(copy.pdf_bytes), copy.original_name)
+
+    cv = application.candidate.cv_file
+
+    try:
+        if cv and cv.storage.exists(cv.name):
+            with cv.open("rb") as handle:
+                return _pdf_response(handle.read(), cv.name.rsplit("/", 1)[-1])
+    except (OSError, ValueError):
+        pass
+
+    return HttpResponse(
+        _NOT_STORED, status=404,
+        content_type="text/plain; charset=utf-8"
     )
-
-    # ASCII-only, no quotes or control characters in the header value.
-    safe_name = "".join(
-        c if (c.isascii() and c.isalnum()) or c in "._- " else "_"
-        for c in (document.original_name or "document.pdf")
-    )[:100] or "document.pdf"
-
-    response["Content-Disposition"] = (
-        f'{"inline" if is_pdf else "attachment"}; filename="{safe_name}"'
-    )
-    response["X-Content-Type-Options"] = "nosniff"
-    response["Cache-Control"] = "private, no-store"
-
-    return response
 
 
 @login_required
@@ -400,6 +463,7 @@ def candidate_detail(request, application_id):
         # never to candidates or other staff roles.
         "can_view_audit": _can_make_final_decision(request.user),
         "is_staff_reviewer": is_staff,
+        "cv_available": _cv_available(application),
         # defer(): the list must not load every PDF just to show a row;
         # has_file says whether the original can be opened.
         "supporting_documents": list(
@@ -732,6 +796,14 @@ def apply_job(request, job_id):
                         "pdf_bytes": pdf_bytes,
                         "original_filename": cv_file.name[:255],
                         "sha256": hashlib.sha256(pdf_bytes).hexdigest(),
+                    }
+                )
+
+                ApplicationCvFile.objects.update_or_create(
+                    application=application,
+                    defaults={
+                        "pdf_bytes": pdf_bytes,
+                        "original_name": cv_file.name[:255],
                     }
                 )
 

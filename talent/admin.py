@@ -5,6 +5,7 @@ from .models import (
     Candidate,
     Application,
     ApplicationSupportingDocument,
+    ApplicationCvFile,
     HumanDecision
 )
 
@@ -14,3 +15,4 @@ admin.site.register(Candidate)
 admin.site.register(Application)
 admin.site.register(HumanDecision)
 admin.site.register(ApplicationSupportingDocument)
+admin.site.register(ApplicationCvFile)

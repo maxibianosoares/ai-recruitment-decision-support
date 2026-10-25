@@ -373,6 +373,41 @@ class ApplicationDocument(models.Model):
         return f"Document for application {self.application_id}"
 
 
+class ApplicationCvFile(models.Model):
+    """
+    The CV PDF exactly as this application was submitted, kept so that
+    authorised reviewers can open it from the candidate page.
+
+    Separate from ApplicationDocument on purpose: that table is the
+    worker's queue payload and is deleted when the application is
+    finished (its presence also decides how the worker starts). This
+    copy lives as long as the application and is never read by the
+    worker. It is stored in the database because the web server's disk
+    (MEDIA_ROOT) is not permanent on Railway.
+    """
+
+    application = models.OneToOneField(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="cv_copy"
+    )
+
+    pdf_bytes = models.BinaryField()
+
+    original_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default=""
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    def __str__(self):
+        return f"CV for application {self.application_id}"
+
+
 class ApplicationSupportingDocument(models.Model):
     """
     An optional document uploaded together with the CV: the latest
