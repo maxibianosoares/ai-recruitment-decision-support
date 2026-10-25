@@ -82,3 +82,5 @@ transformers_cache/
 
 *.tmp
 *.temp
+hitl_inbox/
+reports/
