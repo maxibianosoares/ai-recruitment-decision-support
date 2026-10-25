@@ -350,3 +350,56 @@ def render_markdown(report, lang="en"):
             else f"- {L['integrity_bad']}: {bad}",
             "", f"_{L['privacy']}: {report['privacy']}_", ""]
     return "\n".join(out)
+
+
+# ---------------------------------------------------------------------
+# Plain text (the email backend sends text only)
+# ---------------------------------------------------------------------
+
+def _num(value, na):
+    return na if value is None else value
+
+
+def render_text(report, lang="en"):
+    """Readable without a monospace font or Markdown: label: value lines."""
+    L = LABELS[lang]
+    na = L["none"]
+    p = report["period"]
+    lines = [
+        L["title"],
+        f"{L['period']}: {p['start']} - {p['end']}",
+        "",
+        L["summary"].upper(),
+        f"{L['decisions']}: {p['decisions']}"
+        f" ({L['approved']}: {p['approved']}, {L['rejected']}: {p['rejected']})",
+        f"{L['agreed']}: {p['agreed_with_ai']} ({_pct(p['agreement_rate'], na)})",
+        f"{L['overridden']}: {p['overridden']} ({_pct(p['override_rate'], na)})",
+        f"   {L['ai_neg_app']}: {p['overridden_breakdown']['ai_negative_human_approved']}",
+        f"   {L['ai_pos_rej']}: {p['overridden_breakdown']['ai_positive_human_rejected']}",
+        f"{L['median']}: {_num(p['median_hours_ai_to_decision'], na)}",
+        "",
+        L["weekly"].upper(),
+    ]
+    for w in report["weekly"]:
+        flag = f" [{L['low']}]" if w["low_volume"] and w["decisions"] else ""
+        lines.append(
+            f"{w['week_start']}{flag}: {w['decisions']} / "
+            f"{L['approved']} {w['approved']} / {L['rejected']} {w['rejected']} / "
+            f"{L['agreed']} {w['agreed_with_ai']} / "
+            f"{L['overridden']} {w['overridden']} / "
+            f"{L['agree_rate']} {_pct(w['agreement_rate'], na)}")
+    lines += ["", L["by_ai"].upper()]
+    for name, cell in p["by_ai_recommendation"].items():
+        lines.append(f"{name}: {cell['decisions']} / {L['agreed']} "
+                     f"{cell['agreed']} / {L['overridden']} {cell['overridden']}")
+    pend = report["pending_now"]
+    lines += ["", L["pending"].upper(),
+              f"{L['pending_total']}: {pend['awaiting_human_decision']}"]
+    for name, count in pend["age"].items():
+        lines.append(f"   {name}: {count}")
+    bad = report["data_integrity"]["agreement_flag_inconsistencies"]
+    lines += ["", L["integrity"].upper(),
+              L["integrity_ok"] if bad == 0
+              else f"{L['integrity_bad']}: {bad}",
+              "", f"{L['privacy']}: {report['privacy']}"]
+    return "\n".join(lines) + "\n"
