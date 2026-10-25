@@ -530,7 +530,6 @@ def process_pending_supporting_documents(application):
             logger.exception("Supporting document %s failed unexpectedly", doc.pk)
             doc.status = T.STATUS_FAILED
             doc.error_message = MSG_UNEXPECTED
-            doc.pdf_bytes = None
             doc.save()
         else:
             logger.info("Supporting document %s (%s): %s",
@@ -561,7 +560,10 @@ def _process_one(doc):
     doc.page_count = report.get("pages_total") or len(pages)
     doc.extraction_method = report.get("method", "") or ""
     doc.extraction_seconds = report.get("seconds", 0) or 0
-    doc.pdf_bytes = None   # released: text and parsed fields are what we keep
+    # The PDF bytes are KEPT so that authorised reviewers can open the
+    # original document from the candidate page (talent.views.
+    # supporting_document_file); the extracted text and parsed fields
+    # are stored alongside.
 
     if outcome.state == orchestrator.INVALID:
         doc.status = T.STATUS_FAILED

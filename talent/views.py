@@ -7,7 +7,8 @@ from django.core.mail import send_mail
 from django.shortcuts import render
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden
+from django.db.models import BooleanField, Case, Value, When
 from accounts.decorators import permission_required
 from accounts.email_context import email_context
 from .models import Job
@@ -181,6 +182,71 @@ def _send_candidate_outcome_email(application, agreed_with_ai=True):
 
 
 @login_required
+def supporting_document_file(request, application_id, document_id):
+    """
+    Open one uploaded supporting document (PDF) in the browser.
+
+    Same access rule as candidate_detail: recruitment staff, or the
+    candidate who owns the application -- nobody else. Served inline
+    from the database (never from /media/), private, not cached, and
+    with sniffing disabled.
+    """
+
+    application = get_object_or_404(
+        Application.objects.select_related("candidate"),
+        id=application_id
+    )
+
+    is_staff = _has_recruitment_permission(request.user)
+
+    is_owner = (
+        application.candidate.user_id is not None
+        and application.candidate.user_id == request.user.id
+    )
+
+    if not (is_staff or is_owner):
+        return HttpResponseForbidden(
+            "You do not have permission to view this document."
+        )
+
+    document = get_object_or_404(
+        application.supporting_documents,
+        id=document_id
+    )
+
+    data = bytes(document.pdf_bytes) if document.pdf_bytes else b""
+
+    if not data:
+        return HttpResponse(
+            "The original file for this document is not stored "
+            "(it was uploaded before file storage was enabled).",
+            status=404,
+            content_type="text/plain; charset=utf-8"
+        )
+
+    is_pdf = data[:5] == b"%PDF-"
+
+    response = HttpResponse(
+        data,
+        content_type="application/pdf" if is_pdf else "application/octet-stream"
+    )
+
+    # ASCII-only, no quotes or control characters in the header value.
+    safe_name = "".join(
+        c if (c.isascii() and c.isalnum()) or c in "._- " else "_"
+        for c in (document.original_name or "document.pdf")
+    )[:100] or "document.pdf"
+
+    response["Content-Disposition"] = (
+        f'{"inline" if is_pdf else "attachment"}; filename="{safe_name}"'
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Cache-Control"] = "private, no-store"
+
+    return response
+
+
+@login_required
 def candidate_detail(request, application_id):
 
     application = get_object_or_404(
@@ -334,7 +400,16 @@ def candidate_detail(request, application_id):
         # never to candidates or other staff roles.
         "can_view_audit": _can_make_final_decision(request.user),
         "is_staff_reviewer": is_staff,
-        "supporting_documents": list(application.supporting_documents.all()),
+        # defer(): the list must not load every PDF just to show a row;
+        # has_file says whether the original can be opened.
+        "supporting_documents": list(
+            application.supporting_documents
+            .defer("pdf_bytes")
+            .annotate(has_file=Case(
+                When(pdf_bytes__isnull=False, then=Value(True)),
+                default=Value(False),
+                output_field=BooleanField()))
+        ),
         "document_review": (application.ai_rag_context or {}).get("document_review"),
         "requirement_matching": (application.unified_candidate or {}).get("requirement_matching"),
     }

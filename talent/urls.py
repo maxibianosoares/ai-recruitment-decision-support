@@ -8,6 +8,7 @@ from .views import (
     ranking_jobs,
     ranking_by_job,
     candidate_detail,
+    supporting_document_file,
     create_job,
     test_semantic_matching,
     my_applications
@@ -67,6 +68,11 @@ urlpatterns = [
         "ranking/<int:application_id>/",
         candidate_detail,
         name="candidate_detail"
+    ),
+    path(
+        "ranking/<int:application_id>/documents/<int:document_id>/",
+        supporting_document_file,
+        name="supporting_document_file"
     ),
     path(
 

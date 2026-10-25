@@ -157,7 +157,7 @@ class ReadAndMergeTests(DocBase):
         (doc,) = self.processed(app)
         self.assertEqual(doc.status, SD.STATUS_PROCESSED)
         self.assertEqual(doc.extraction_method, "native")
-        self.assertIsNone(doc.pdf_bytes)            # bytes released
+        self.assertTrue(doc.pdf_bytes)              # original kept, so reviewers can open it
         unified = build_unified(app, good_profile())
         self.assertEqual(len(unified["education"]), 1)
         e = unified["education"][0]
@@ -469,8 +469,8 @@ class WorkerAndPipelineTests(DocBase):
         for field in ("ai_profile", "ai_rule_result", "ai_semantic_result",
                       "ai_skill_gap", "ai_explainable_report"):
             self.assertTrue(getattr(app, field), field)
-        # bytes of every supporting document were released
-        self.assertFalse(app.supporting_documents.exclude(pdf_bytes=None).exists())
+        # the original of every supporting document is kept for reviewers
+        self.assertFalse(app.supporting_documents.filter(pdf_bytes=None).exists())
         self.assertFalse(ApplicationDocument.objects.filter(application=app).exists())
 
     def test_supporting_document_crash_never_blocks_screening(self):
