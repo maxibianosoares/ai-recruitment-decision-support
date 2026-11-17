@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Vacancy eligibility rules (public notices)",
+  "type": "object",
+  "required": [
+    "dataset",
+    "version",
+    "status",
+    "rules",
+    "vacancies"
+  ],
+  "properties": {
+    "dataset": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "contains_personal_data": {
+      "const": false
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "summary",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^R[0-9]{2}$"
+          },
+          "type": {
+            "enum": [
+              "code",
+              "partial",
+              "human"
+            ]
+          }
+        }
+      }
+    },
+    "vacancies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "job_title",
+          "requirements"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^CPI/[0-9]+/[0-9]{4}$"
+          },
+          "positions": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "salary_usd": {
+            "type": "number"
+          },
+          "verification": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "ocr_unverified",
+                  "human_verified",
+                  "synthetic"
+                ]
+              }
+            }
+          },
+          "requirements": {
+            "type": "object",
+            "required": [],
+            "properties": {
+              "R02": {
+                "type": "object",
+                "required": [
+                  "min_age",
+                  "max_age"
+                ],
+                "properties": {
+                  "min_age": {
+                    "type": "integer"
+                  },
+                  "max_age": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "R04": {
+                "type": "object",
+                "required": [
+                  "min_months"
+                ],
+                "properties": {
+                  "min_months": {
+                    "type": "number"
+                  }
+                }
+              },
+              "R11": {
+                "type": "object",
+                "required": [
+                  "written_min_score"
+                ]
+              },
+              "R13": {
+                "type": "object",
+                "required": [
+                  "general_weight",
+                  "specific_weight"
+                ]
+              }
+            },
+            "description": "Declare only the rules that apply to this job; absent rules are reported NOT_APPLICABLE by the engine."
+          }
+        }
+      }
+    }
+  },
+  "$comment": "Every rule block R01..R14 is optional per job. The engine returns NOT_APPLICABLE for blocks a job does not declare."
+}

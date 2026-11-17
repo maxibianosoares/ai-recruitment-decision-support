@@ -1,0 +1,2086 @@
+{
+  "dataset": "hngv_2026_vacancy_rules",
+  "version": "0.1.0",
+  "generated": "2026-11-16",
+  "source": "Public notices (Avizu Konkursu Publiku Rejime Kareira Espesial HNGV 2026) from https://vagas.cfp.gov.tl/ ; OCR (Tesseract eng) then manual cleaning",
+  "status": "UNVERIFIED: every value must be checked against the original PDF before use in the paper or in production",
+  "contains_personal_data": false,
+  "rules": [
+    {
+      "id": "R01",
+      "summary": "Applicant is a Timor-Leste citizen, proven by valid ID card (BI), voter card and RDTL birth certificate",
+      "type": "code",
+      "how_to_check": "Check that the three documents exist and are valid (boolean)",
+      "input_needed": "Exists/valid status of each document",
+      "gap": "Authenticity of documents is still checked by a person"
+    },
+    {
+      "id": "R02",
+      "summary": "Age at least 20 and at most 55 years",
+      "type": "code",
+      "how_to_check": "Compute age from date of birth and compare with 20 and 55",
+      "input_needed": "Date of birth; reference date",
+      "gap": "Reference date (closing date? test date?) and whether limits are inclusive are not stated"
+    },
+    {
+      "id": "R03",
+      "summary": "Diploma at the required level and field, legalised by MESCC",
+      "type": "partial",
+      "how_to_check": "Level (Bacharelatu/Licenciatura) as a rule; field through a mapping list of study programmes",
+      "input_needed": "Level, programme name, legalisation status",
+      "gap": "No mapping list of fields yet; legalisation is checked from the document; CPI/4 text is inconsistent"
+    },
+    {
+      "id": "R04",
+      "summary": "At least 3 months of work experience in the relevant field in a health facility",
+      "type": "partial",
+      "how_to_check": "Duration computed from start and end dates; field and type of facility need judgement",
+      "input_needed": "Work history in the CV (position, place, dates)",
+      "gap": "No experience letter in the document list; evidence is only the CV and certificates"
+    },
+    {
+      "id": "R05",
+      "summary": "Mastery of Tetum and Portuguese (official languages); minimum knowledge of English",
+      "type": "human",
+      "how_to_check": "Cannot be coded from documents; assessed by test or interview",
+      "input_needed": "Test or interview result",
+      "gap": "No threshold or test method stated; CPI/4 asks only minimum Portuguese and English"
+    },
+    {
+      "id": "R06",
+      "summary": "Good physical and mental condition, proven by a medical certificate at the interview stage",
+      "type": "partial",
+      "how_to_check": "Presence and validity of the certificate as a rule; medical content is outside the system",
+      "input_needed": "Medical certificate, date",
+      "gap": "Required at interview stage, not at initial submission"
+    },
+    {
+      "id": "R07",
+      "summary": "Good conduct, proven by a valid \"Bom Comportamento\" certificate from the Ministry of Justice",
+      "type": "partial",
+      "how_to_check": "Check presence and validity period; content checked by a person",
+      "input_needed": "Certificate, issue date",
+      "gap": "Not in the 9-item submission list; when it is submitted is unclear"
+    },
+    {
+      "id": "R08",
+      "summary": "Holds a valid professional card (MdS)",
+      "type": "partial",
+      "how_to_check": "Check presence and validity period",
+      "input_needed": "Card, expiry date",
+      "gap": "Not in the 9-item submission list; when it is submitted is unclear"
+    },
+    {
+      "id": "R09",
+      "summary": "Complete submission (9 items) within 7-18 September 2026 (10 working days, working hours)",
+      "type": "code",
+      "how_to_check": "Check completeness of the 9 items and the submission timestamp within the period",
+      "input_needed": "List of documents received, date and time",
+      "gap": "Period detected by OCR in 6 of 10 notices; the rest assumed the same"
+    },
+    {
+      "id": "R10",
+      "summary": "Three sequential stages: documents, written test, interview (eliminatory)",
+      "type": "code",
+      "how_to_check": "State machine: continue only if the previous stage was passed",
+      "input_needed": "Status per stage",
+      "gap": "Pass rule for stage I is not described"
+    },
+    {
+      "id": "R11",
+      "summary": "Written test score of at least 60 to continue to the interview",
+      "type": "code",
+      "how_to_check": "Compare test score with 60",
+      "input_needed": "Written test score",
+      "gap": "Whether 60 is inclusive is unclear (\"valor 60\")"
+    },
+    {
+      "id": "R12",
+      "summary": "Final score = simple arithmetic mean of all stage scores (0-100); suitable if >= 60",
+      "type": "code",
+      "how_to_check": "Compute the mean and compare with 60",
+      "input_needed": "Score of each stage",
+      "gap": "How stage I is scored is not explained; ranking against number of positions is not stated"
+    },
+    {
+      "id": "R13",
+      "summary": "Test content weights: general 25% and specific 75%",
+      "type": "code",
+      "how_to_check": "Weight parameters on the test score (not a decision rule for candidates)",
+      "input_needed": "Score per test part",
+      "gap": "Question content is judged by people"
+    },
+    {
+      "id": "R14",
+      "summary": "Document assessment (stage I): criteria and how scores are given",
+      "type": "human",
+      "how_to_check": "No written criteria, so it cannot be coded",
+      "input_needed": "None",
+      "gap": "Important gap for accountability and discretion; should be asked of CSC"
+    }
+  ],
+  "vacancies": [
+    {
+      "code": "CPI/1/2026",
+      "institution": "HNGV (Hospital Nacional Guido Valadares), Ministry of Health",
+      "job_title": "Medico Jeral (General Doctor)",
+      "category_grade": "Medico Jeral Junior 1",
+      "positions": 112,
+      "salary_usd": 610,
+      "appointment": "permanent",
+      "probation_years": 1,
+      "location": "HNGV, Dili, Timor-Leste",
+      "regime": "special career regime (rejime kareira espesial)",
+      "source_file": "2026_09_1.-MEDICO-GERAL-JUNIOR-1-REF-CPI-1-2026.pdf",
+      "verification": {
+        "status": "ocr_unverified",
+        "note": "OCR; age, 3-month experience, pass mark 60 and 25/75 weights detected automatically; application period detected. Needs human check against the PDF."
+      },
+      "requirements": {
+        "R01": {
+          "citizen": true,
+          "proof_documents": [
+            "bi_card",
+            "voter_card",
+            "birth_certificate"
+          ]
+        },
+        "R02": {
+          "min_age": 20,
+          "max_age": 55,
+          "inclusive": true,
+          "reference_date_stated": false,
+          "default_reference_date": "2026-09-18",
+          "reference_date_note": "Notice does not say at which date age is measured; closing date of submission is used as a default and flagged"
+        },
+        "R03": {
+          "required_level": "licenciatura",
+          "accepted_fields": [
+            "general medicine"
+          ],
+          "education_text": "Licenciatura (bachelor) in General Medicine, legalised by MESCC",
+          "legalisation_by": "MESCC",
+          "legalisation_stated_in_ocr": true,
+          "level_rank": {
+            "bacharelatu": 1,
+            "licenciatura": 2
+          }
+        },
+        "R04": {
+          "min_months": 3,
+          "field": "general medicine",
+          "facility": "health facility"
+        },
+        "R05": {
+          "languages": "Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+          "automatable": false
+        },
+        "R06": {
+          "document": "medical_certificate",
+          "due_stage": "interview"
+        },
+        "R07": {
+          "document": "good_conduct_certificate",
+          "issuer": "Ministry of Justice",
+          "due_stage": "not stated"
+        },
+        "R08": {
+          "document": "professional_card_mds",
+          "due_stage": "not stated"
+        },
+        "R09": {
+          "window_start": "2026-09-07",
+          "window_end": "2026-09-18",
+          "weekdays_only": true,
+          "hours": [
+            [
+              "08:00",
+              "12:00"
+            ],
+            [
+              "13:30",
+              "17:30"
+            ]
+          ],
+          "items": [
+            {
+              "no": 1,
+              "key": "application_letter",
+              "kind": "document",
+              "text": "Signed application letter addressed to the president of the jury panel"
+            },
+            {
+              "no": 2,
+              "key": "cv",
+              "kind": "document",
+              "text": "Curriculum Vitae in Tetum or Portuguese, signed by the candidate and two witnesses"
+            },
+            {
+              "no": 3,
+              "key": "diploma_legalised",
+              "kind": "document",
+              "text": "Copy of the latest diploma legalised by the Ministry of Higher Education (MESCC); original must be shown"
+            },
+            {
+              "no": 4,
+              "key": "birth_certificate",
+              "kind": "document",
+              "text": "Copy of RDTL birth certificate"
+            },
+            {
+              "no": 5,
+              "key": "voter_card",
+              "kind": "document",
+              "text": "Copy of voter card"
+            },
+            {
+              "no": 6,
+              "key": "bi_card",
+              "kind": "document",
+              "text": "Copy of valid RDTL identity card (Bilhete de Identidade, BI)"
+            },
+            {
+              "no": 7,
+              "key": "training_certificates",
+              "kind": "document",
+              "text": "Photocopies of the training certificates mentioned in the CV",
+              "required_if": "cv_lists_training_certificates"
+            },
+            {
+              "no": 8,
+              "key": "photo_3x4",
+              "kind": "document",
+              "text": "Colour photo 3x4, 4 copies"
+            },
+            {
+              "no": 9,
+              "key": "submission_place",
+              "kind": "place",
+              "text": "Documents are submitted at Hospital Dr. Antonio de Carvalho, Lahane"
+            }
+          ]
+        },
+        "R10": {
+          "stages": [
+            "document_assessment",
+            "written_test",
+            "interview"
+          ],
+          "eliminatory": true
+        },
+        "R11": {
+          "written_min_score": 60,
+          "scale_max": 100,
+          "inclusive_assumed": true,
+          "statute_conflict": "C1"
+        },
+        "R12": {
+          "final_pass_score": 60,
+          "method": "simple arithmetic mean of all stage scores",
+          "scale_max": 100
+        },
+        "R13": {
+          "general_weight": 0.25,
+          "specific_weight": 0.75
+        },
+        "R14": {
+          "criteria_stated": false
+        }
+      },
+      "rule_status": {
+        "R01": "code",
+        "R02": "code",
+        "R03": "partial",
+        "R04": "partial",
+        "R05": "human",
+        "R06": "partial",
+        "R07": "partial",
+        "R08": "partial",
+        "R09": "code",
+        "R10": "code",
+        "R11": "code",
+        "R12": "code",
+        "R13": "code",
+        "R14": "human"
+      },
+      "needs_human": [
+        "R05",
+        "R14"
+      ]
+    },
+    {
+      "code": "CPI/2/2026",
+      "institution": "HNGV (Hospital Nacional Guido Valadares), Ministry of Health",
+      "job_title": "Enfermeiro/a (Nurse)",
+      "category_grade": "Enfermeiro Jeral, Junior A/1",
+      "positions": 236,
+      "salary_usd": 510,
+      "appointment": "permanent",
+      "probation_years": 1,
+      "location": "HNGV, Dili, Timor-Leste",
+      "regime": "special career regime (rejime kareira espesial)",
+      "source_file": "2026_09_2.-ENFERMEIRO-GERAL-JUNIOR-A1-CPI-2-2026.pdf",
+      "verification": {
+        "status": "ocr_unverified",
+        "note": "OCR; age, 3-month experience, pass mark 60 and 25/75 weights detected automatically; application period detected. Needs human check against the PDF."
+      },
+      "requirements": {
+        "R01": {
+          "citizen": true,
+          "proof_documents": [
+            "bi_card",
+            "voter_card",
+            "birth_certificate"
+          ]
+        },
+        "R02": {
+          "min_age": 20,
+          "max_age": 55,
+          "inclusive": true,
+          "reference_date_stated": false,
+          "default_reference_date": "2026-09-18",
+          "reference_date_note": "Notice does not say at which date age is measured; closing date of submission is used as a default and flagged"
+        },
+        "R03": {
+          "required_level": "licenciatura",
+          "accepted_fields": [
+            "nursing",
+            "nursing (ners)"
+          ],
+          "education_text": "Licenciatura in Nursing (Ners) OR Nursing, legalised by MESCC",
+          "legalisation_by": "MESCC",
+          "legalisation_stated_in_ocr": true,
+          "level_rank": {
+            "bacharelatu": 1,
+            "licenciatura": 2
+          }
+        },
+        "R04": {
+          "min_months": 3,
+          "field": "general nursing",
+          "facility": "health facility"
+        },
+        "R05": {
+          "languages": "Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+          "automatable": false
+        },
+        "R06": {
+          "document": "medical_certificate",
+          "due_stage": "interview"
+        },
+        "R07": {
+          "document": "good_conduct_certificate",
+          "issuer": "Ministry of Justice",
+          "due_stage": "not stated"
+        },
+        "R08": {
+          "document": "professional_card_mds",
+          "due_stage": "not stated"
+        },
+        "R09": {
+          "window_start": "2026-09-07",
+          "window_end": "2026-09-18",
+          "weekdays_only": true,
+          "hours": [
+            [
+              "08:00",
+              "12:00"
+            ],
+            [
+              "13:30",
+              "17:30"
+            ]
+          ],
+          "items": [
+            {
+              "no": 1,
+              "key": "application_letter",
+              "kind": "document",
+              "text": "Signed application letter addressed to the president of the jury panel"
+            },
+            {
+              "no": 2,
+              "key": "cv",
+              "kind": "document",
+              "text": "Curriculum Vitae in Tetum or Portuguese, signed by the candidate and two witnesses"
+            },
+            {
+              "no": 3,
+              "key": "diploma_legalised",
+              "kind": "document",
+              "text": "Copy of the latest diploma legalised by the Ministry of Higher Education (MESCC); original must be shown"
+            },
+            {
+              "no": 4,
+              "key": "birth_certificate",
+              "kind": "document",
+              "text": "Copy of RDTL birth certificate"
+            },
+            {
+              "no": 5,
+              "key": "voter_card",
+              "kind": "document",
+              "text": "Copy of voter card"
+            },
+            {
+              "no": 6,
+              "key": "bi_card",
+              "kind": "document",
+              "text": "Copy of valid RDTL identity card (Bilhete de Identidade, BI)"
+            },
+            {
+              "no": 7,
+              "key": "training_certificates",
+              "kind": "document",
+              "text": "Photocopies of the training certificates mentioned in the CV",
+              "required_if": "cv_lists_training_certificates"
+            },
+            {
+              "no": 8,
+              "key": "photo_3x4",
+              "kind": "document",
+              "text": "Colour photo 3x4, 4 copies"
+            },
+            {
+              "no": 9,
+              "key": "submission_place",
+              "kind": "place",
+              "text": "Documents are submitted at Hospital Dr. Antonio de Carvalho, Lahane"
+            }
+          ]
+        },
+        "R10": {
+          "stages": [
+            "document_assessment",
+            "written_test",
+            "interview"
+          ],
+          "eliminatory": true
+        },
+        "R11": {
+          "written_min_score": 60,
+          "scale_max": 100,
+          "inclusive_assumed": true,
+          "statute_conflict": "C1"
+        },
+        "R12": {
+          "final_pass_score": 60,
+          "method": "simple arithmetic mean of all stage scores",
+          "scale_max": 100
+        },
+        "R13": {
+          "general_weight": 0.25,
+          "specific_weight": 0.75
+        },
+        "R14": {
+          "criteria_stated": false
+        }
+      },
+      "rule_status": {
+        "R01": "code",
+        "R02": "code",
+        "R03": "partial",
+        "R04": "partial",
+        "R05": "human",
+        "R06": "partial",
+        "R07": "partial",
+        "R08": "partial",
+        "R09": "code",
+        "R10": "code",
+        "R11": "code",
+        "R12": "code",
+        "R13": "code",
+        "R14": "human"
+      },
+      "needs_human": [
+        "R05",
+        "R14"
+      ]
+    },
+    {
+      "code": "CPI/4/2026",
+      "institution": "HNGV (Hospital Nacional Guido Valadares), Ministry of Health",
+      "job_title": "Assistente de Enfermeiro (Nursing Assistant)",
+      "category_grade": "Assistente de Enfermeiro/1",
+      "positions": 30,
+      "salary_usd": 250,
+      "appointment": "permanent",
+      "probation_years": 1,
+      "location": "HNGV, Dili, Timor-Leste",
+      "regime": "special career regime (rejime kareira espesial)",
+      "source_file": "2026_09_4.-ASSISTENTE-DE-ENFERMEIRO-1-CPI-4-2026.pdf",
+      "verification": {
+        "status": "ocr_unverified",
+        "note": "OCR; age, 3-month experience, pass mark 60 and 25/75 weights detected automatically; application period detected. Needs human check against the PDF. The education requirement in this notice is inconsistent, check the PDF.",
+        "flags": [
+          "education text inconsistent in the notice (see requirements.R03.education_text)",
+          "languages differ: Tetum + minimum Portuguese and English"
+        ]
+      },
+      "requirements": {
+        "R01": {
+          "citizen": true,
+          "proof_documents": [
+            "bi_card",
+            "voter_card",
+            "birth_certificate"
+          ]
+        },
+        "R02": {
+          "min_age": 20,
+          "max_age": 55,
+          "inclusive": true,
+          "reference_date_stated": false,
+          "default_reference_date": "2026-09-18",
+          "reference_date_note": "Notice does not say at which date age is measured; closing date of submission is used as a default and flagged"
+        },
+        "R03": {
+          "required_level": "bacharelatu",
+          "accepted_fields": [
+            "nursing",
+            "midwifery",
+            "public health"
+          ],
+          "education_text": "Bacharelatu (3-year diploma) in Nursing, Midwifery, and Licenciatura in Public Health; item 5 says this vacancy is only for Diploma III in the assistant field (text is inconsistent)",
+          "legalisation_by": "MESCC",
+          "legalisation_stated_in_ocr": null,
+          "level_rank": {
+            "bacharelatu": 1,
+            "licenciatura": 2
+          }
+        },
+        "R04": {
+          "min_months": 3,
+          "field": "nursing assistant",
+          "facility": "health facility"
+        },
+        "R05": {
+          "languages": "Tetum (official language) mastered; minimum knowledge of Portuguese and English (differs from the other vacancies)",
+          "automatable": false
+        },
+        "R06": {
+          "document": "medical_certificate",
+          "due_stage": "interview"
+        },
+        "R07": {
+          "document": "good_conduct_certificate",
+          "issuer": "Ministry of Justice",
+          "due_stage": "not stated"
+        },
+        "R08": {
+          "document": "professional_card_mds",
+          "due_stage": "not stated"
+        },
+        "R09": {
+          "window_start": "2026-09-07",
+          "window_end": "2026-09-18",
+          "weekdays_only": true,
+          "hours": [
+            [
+              "08:00",
+              "12:00"
+            ],
+            [
+              "13:30",
+              "17:30"
+            ]
+          ],
+          "items": [
+            {
+              "no": 1,
+              "key": "application_letter",
+              "kind": "document",
+              "text": "Signed application letter addressed to the president of the jury panel"
+            },
+            {
+              "no": 2,
+              "key": "cv",
+              "kind": "document",
+              "text": "Curriculum Vitae in Tetum or Portuguese, signed by the candidate and two witnesses"
+            },
+            {
+              "no": 3,
+              "key": "diploma_legalised",
+              "kind": "document",
+              "text": "Copy of the latest diploma legalised by the Ministry of Higher Education (MESCC); original must be shown"
+            },
+            {
+              "no": 4,
+              "key": "birth_certificate",
+              "kind": "document",
+              "text": "Copy of RDTL birth certificate"
+            },
+            {
+              "no": 5,
+              "key": "voter_card",
+              "kind": "document",
+              "text": "Copy of voter card"
+            },
+            {
+              "no": 6,
+              "key": "bi_card",
+              "kind": "document",
+              "text": "Copy of valid RDTL identity card (Bilhete de Identidade, BI)"
+            },
+            {
+              "no": 7,
+              "key": "training_certificates",
+              "kind": "document",
+              "text": "Photocopies of the training certificates mentioned in the CV",
+              "required_if": "cv_lists_training_certificates"
+            },
+            {
+              "no": 8,
+              "key": "photo_3x4",
+              "kind": "document",
+              "text": "Colour photo 3x4, 4 copies"
+            },
+            {
+              "no": 9,
+              "key": "submission_place",
+              "kind": "place",
+              "text": "Documents are submitted at Hospital Dr. Antonio de Carvalho, Lahane"
+            }
+          ]
+        },
+        "R10": {
+          "stages": [
+            "document_assessment",
+            "written_test",
+            "interview"
+          ],
+          "eliminatory": true
+        },
+        "R11": {
+          "written_min_score": 60,
+          "scale_max": 100,
+          "inclusive_assumed": true,
+          "statute_conflict": "C1"
+        },
+        "R12": {
+          "final_pass_score": 60,
+          "method": "simple arithmetic mean of all stage scores",
+          "scale_max": 100
+        },
+        "R13": {
+          "general_weight": 0.25,
+          "specific_weight": 0.75
+        },
+        "R14": {
+          "criteria_stated": false
+        }
+      },
+      "rule_status": {
+        "R01": "code",
+        "R02": "code",
+        "R03": "partial",
+        "R04": "partial",
+        "R05": "human",
+        "R06": "partial",
+        "R07": "partial",
+        "R08": "partial",
+        "R09": "code",
+        "R10": "code",
+        "R11": "code",
+        "R12": "code",
+        "R13": "code",
+        "R14": "human"
+      },
+      "needs_human": [
+        "R05",
+        "R14"
+      ]
+    },
+    {
+      "code": "CPI/5/2026",
+      "institution": "HNGV (Hospital Nacional Guido Valadares), Ministry of Health",
+      "job_title": "Parteira (Midwife)",
+      "category_grade": "Parteira Jeral, Junior A/1",
+      "positions": 25,
+      "salary_usd": 510,
+      "appointment": "permanent",
+      "probation_years": 1,
+      "location": "HNGV, Dili, Timor-Leste",
+      "regime": "special career regime (rejime kareira espesial)",
+      "source_file": "2026_09_5.-PARTEIRA-GERAL-JUNIOR-A1-CPI-5-2026.pdf",
+      "verification": {
+        "status": "ocr_unverified",
+        "note": "OCR; age, 3-month experience, pass mark 60 and 25/75 weights detected automatically; application period detected. Needs human check against the PDF."
+      },
+      "requirements": {
+        "R01": {
+          "citizen": true,
+          "proof_documents": [
+            "bi_card",
+            "voter_card",
+            "birth_certificate"
+          ]
+        },
+        "R02": {
+          "min_age": 20,
+          "max_age": 55,
+          "inclusive": true,
+          "reference_date_stated": false,
+          "default_reference_date": "2026-09-18",
+          "reference_date_note": "Notice does not say at which date age is measured; closing date of submission is used as a default and flagged"
+        },
+        "R03": {
+          "required_level": "licenciatura",
+          "accepted_fields": [
+            "midwifery"
+          ],
+          "education_text": "Licenciatura in Midwifery, legalised by MESCC",
+          "legalisation_by": "MESCC",
+          "legalisation_stated_in_ocr": true,
+          "level_rank": {
+            "bacharelatu": 1,
+            "licenciatura": 2
+          }
+        },
+        "R04": {
+          "min_months": 3,
+          "field": "midwifery",
+          "facility": "health facility"
+        },
+        "R05": {
+          "languages": "Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+          "automatable": false
+        },
+        "R06": {
+          "document": "medical_certificate",
+          "due_stage": "interview"
+        },
+        "R07": {
+          "document": "good_conduct_certificate",
+          "issuer": "Ministry of Justice",
+          "due_stage": "not stated"
+        },
+        "R08": {
+          "document": "professional_card_mds",
+          "due_stage": "not stated"
+        },
+        "R09": {
+          "window_start": "2026-09-07",
+          "window_end": "2026-09-18",
+          "weekdays_only": true,
+          "hours": [
+            [
+              "08:00",
+              "12:00"
+            ],
+            [
+              "13:30",
+              "17:30"
+            ]
+          ],
+          "items": [
+            {
+              "no": 1,
+              "key": "application_letter",
+              "kind": "document",
+              "text": "Signed application letter addressed to the president of the jury panel"
+            },
+            {
+              "no": 2,
+              "key": "cv",
+              "kind": "document",
+              "text": "Curriculum Vitae in Tetum or Portuguese, signed by the candidate and two witnesses"
+            },
+            {
+              "no": 3,
+              "key": "diploma_legalised",
+              "kind": "document",
+              "text": "Copy of the latest diploma legalised by the Ministry of Higher Education (MESCC); original must be shown"
+            },
+            {
+              "no": 4,
+              "key": "birth_certificate",
+              "kind": "document",
+              "text": "Copy of RDTL birth certificate"
+            },
+            {
+              "no": 5,
+              "key": "voter_card",
+              "kind": "document",
+              "text": "Copy of voter card"
+            },
+            {
+              "no": 6,
+              "key": "bi_card",
+              "kind": "document",
+              "text": "Copy of valid RDTL identity card (Bilhete de Identidade, BI)"
+            },
+            {
+              "no": 7,
+              "key": "training_certificates",
+              "kind": "document",
+              "text": "Photocopies of the training certificates mentioned in the CV",
+              "required_if": "cv_lists_training_certificates"
+            },
+            {
+              "no": 8,
+              "key": "photo_3x4",
+              "kind": "document",
+              "text": "Colour photo 3x4, 4 copies"
+            },
+            {
+              "no": 9,
+              "key": "submission_place",
+              "kind": "place",
+              "text": "Documents are submitted at Hospital Dr. Antonio de Carvalho, Lahane"
+            }
+          ]
+        },
+        "R10": {
+          "stages": [
+            "document_assessment",
+            "written_test",
+            "interview"
+          ],
+          "eliminatory": true
+        },
+        "R11": {
+          "written_min_score": 60,
+          "scale_max": 100,
+          "inclusive_assumed": true,
+          "statute_conflict": "C1"
+        },
+        "R12": {
+          "final_pass_score": 60,
+          "method": "simple arithmetic mean of all stage scores",
+          "scale_max": 100
+        },
+        "R13": {
+          "general_weight": 0.25,
+          "specific_weight": 0.75
+        },
+        "R14": {
+          "criteria_stated": false
+        }
+      },
+      "rule_status": {
+        "R01": "code",
+        "R02": "code",
+        "R03": "partial",
+        "R04": "partial",
+        "R05": "human",
+        "R06": "partial",
+        "R07": "partial",
+        "R08": "partial",
+        "R09": "code",
+        "R10": "code",
+        "R11": "code",
+        "R12": "code",
+        "R13": "code",
+        "R14": "human"
+      },
+      "needs_human": [
+        "R05",
+        "R14"
+      ]
+    },
+    {
+      "code": "CPI/7/2026",
+      "institution": "HNGV (Hospital Nacional Guido Valadares), Ministry of Health",
+      "job_title": "Tekniku Radiologista (Radiology Technician)",
+      "category_grade": "TDTSP Geral, Junior A/1",
+      "positions": 10,
+      "salary_usd": 510,
+      "appointment": "permanent",
+      "probation_years": 1,
+      "location": "HNGV, Dili, Timor-Leste",
+      "regime": "special career regime (rejime kareira espesial)",
+      "source_file": "2026_09_7.-TEKNIKU-RADIOLOGISTA-TDTSP-GERAL-JUNIOR-A1-CPI-7-2026.pdf",
+      "verification": {
+        "status": "ocr_unverified",
+        "note": "OCR; age, 3-month experience, pass mark 60 and 25/75 weights detected automatically; application period not detected by OCR (assumed the same, please check). Needs human check against the PDF."
+      },
+      "requirements": {
+        "R01": {
+          "citizen": true,
+          "proof_documents": [
+            "bi_card",
+            "voter_card",
+            "birth_certificate"
+          ]
+        },
+        "R02": {
+          "min_age": 20,
+          "max_age": 55,
+          "inclusive": true,
+          "reference_date_stated": false,
+          "default_reference_date": "2026-09-18",
+          "reference_date_note": "Notice does not say at which date age is measured; closing date of submission is used as a default and flagged"
+        },
+        "R03": {
+          "required_level": "licenciatura",
+          "accepted_fields": [
+            "radiology"
+          ],
+          "education_text": "Licenciatura in Radiology",
+          "legalisation_by": "MESCC",
+          "legalisation_stated_in_ocr": null,
+          "level_rank": {
+            "bacharelatu": 1,
+            "licenciatura": 2
+          }
+        },
+        "R04": {
+          "min_months": 3,
+          "field": "radiology",
+          "facility": "health facility"
+        },
+        "R05": {
+          "languages": "Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+          "automatable": false
+        },
+        "R06": {
+          "document": "medical_certificate",
+          "due_stage": "interview"
+        },
+        "R07": {
+          "document": "good_conduct_certificate",
+          "issuer": "Ministry of Justice",
+          "due_stage": "not stated"
+        },
+        "R08": {
+          "document": "professional_card_mds",
+          "due_stage": "not stated"
+        },
+        "R09": {
+          "window_start": "2026-09-07",
+          "window_end": "2026-09-18",
+          "weekdays_only": true,
+          "hours": [
+            [
+              "08:00",
+              "12:00"
+            ],
+            [
+              "13:30",
+              "17:30"
+            ]
+          ],
+          "items": [
+            {
+              "no": 1,
+              "key": "application_letter",
+              "kind": "document",
+              "text": "Signed application letter addressed to the president of the jury panel"
+            },
+            {
+              "no": 2,
+              "key": "cv",
+              "kind": "document",
+              "text": "Curriculum Vitae in Tetum or Portuguese, signed by the candidate and two witnesses"
+            },
+            {
+              "no": 3,
+              "key": "diploma_legalised",
+              "kind": "document",
+              "text": "Copy of the latest diploma legalised by the Ministry of Higher Education (MESCC); original must be shown"
+            },
+            {
+              "no": 4,
+              "key": "birth_certificate",
+              "kind": "document",
+              "text": "Copy of RDTL birth certificate"
+            },
+            {
+              "no": 5,
+              "key": "voter_card",
+              "kind": "document",
+              "text": "Copy of voter card"
+            },
+            {
+              "no": 6,
+              "key": "bi_card",
+              "kind": "document",
+              "text": "Copy of valid RDTL identity card (Bilhete de Identidade, BI)"
+            },
+            {
+              "no": 7,
+              "key": "training_certificates",
+              "kind": "document",
+              "text": "Photocopies of the training certificates mentioned in the CV",
+              "required_if": "cv_lists_training_certificates"
+            },
+            {
+              "no": 8,
+              "key": "photo_3x4",
+              "kind": "document",
+              "text": "Colour photo 3x4, 4 copies"
+            },
+            {
+              "no": 9,
+              "key": "submission_place",
+              "kind": "place",
+              "text": "Documents are submitted at Hospital Dr. Antonio de Carvalho, Lahane"
+            }
+          ]
+        },
+        "R10": {
+          "stages": [
+            "document_assessment",
+            "written_test",
+            "interview"
+          ],
+          "eliminatory": true
+        },
+        "R11": {
+          "written_min_score": 60,
+          "scale_max": 100,
+          "inclusive_assumed": true,
+          "statute_conflict": "C1"
+        },
+        "R12": {
+          "final_pass_score": 60,
+          "method": "simple arithmetic mean of all stage scores",
+          "scale_max": 100
+        },
+        "R13": {
+          "general_weight": 0.25,
+          "specific_weight": 0.75
+        },
+        "R14": {
+          "criteria_stated": false
+        }
+      },
+      "rule_status": {
+        "R01": "code",
+        "R02": "code",
+        "R03": "partial",
+        "R04": "partial",
+        "R05": "human",
+        "R06": "partial",
+        "R07": "partial",
+        "R08": "partial",
+        "R09": "code",
+        "R10": "code",
+        "R11": "code",
+        "R12": "code",
+        "R13": "code",
+        "R14": "human"
+      },
+      "needs_human": [
+        "R05",
+        "R14"
+      ]
+    },
+    {
+      "code": "CPI/8/2026",
+      "institution": "HNGV (Hospital Nacional Guido Valadares), Ministry of Health",
+      "job_title": "Tekniku Analista Laboratorio (Laboratory Analyst)",
+      "category_grade": "TDTSP Geral, Junior A/1",
+      "positions": 4,
+      "salary_usd": 510,
+      "appointment": "permanent",
+      "probation_years": 1,
+      "location": "HNGV, Dili, Timor-Leste",
+      "regime": "special career regime (rejime kareira espesial)",
+      "source_file": "2026_09_8.-TEKNIKU-ANALISTA-LABORATORIO-TDTSP-GERAL-JUNIOR-A1-CPI-8-2026.pdf",
+      "verification": {
+        "status": "ocr_unverified",
+        "note": "OCR; age, 3-month experience, pass mark 60 and 25/75 weights detected automatically; application period not detected by OCR (assumed the same, please check). Needs human check against the PDF. Number of positions read from the page 1 image."
+      },
+      "requirements": {
+        "R01": {
+          "citizen": true,
+          "proof_documents": [
+            "bi_card",
+            "voter_card",
+            "birth_certificate"
+          ]
+        },
+        "R02": {
+          "min_age": 20,
+          "max_age": 55,
+          "inclusive": true,
+          "reference_date_stated": false,
+          "default_reference_date": "2026-09-18",
+          "reference_date_note": "Notice does not say at which date age is measured; closing date of submission is used as a default and flagged"
+        },
+        "R03": {
+          "required_level": "licenciatura",
+          "accepted_fields": [
+            "clinical laboratory",
+            "pathology"
+          ],
+          "education_text": "Licenciatura in Clinical Laboratory / Pathology, legalised by MESCC",
+          "legalisation_by": "MESCC",
+          "legalisation_stated_in_ocr": true,
+          "level_rank": {
+            "bacharelatu": 1,
+            "licenciatura": 2
+          }
+        },
+        "R04": {
+          "min_months": 3,
+          "field": "laboratory analyst",
+          "facility": "health facility"
+        },
+        "R05": {
+          "languages": "Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+          "automatable": false
+        },
+        "R06": {
+          "document": "medical_certificate",
+          "due_stage": "interview"
+        },
+        "R07": {
+          "document": "good_conduct_certificate",
+          "issuer": "Ministry of Justice",
+          "due_stage": "not stated"
+        },
+        "R08": {
+          "document": "professional_card_mds",
+          "due_stage": "not stated"
+        },
+        "R09": {
+          "window_start": "2026-09-07",
+          "window_end": "2026-09-18",
+          "weekdays_only": true,
+          "hours": [
+            [
+              "08:00",
+              "12:00"
+            ],
+            [
+              "13:30",
+              "17:30"
+            ]
+          ],
+          "items": [
+            {
+              "no": 1,
+              "key": "application_letter",
+              "kind": "document",
+              "text": "Signed application letter addressed to the president of the jury panel"
+            },
+            {
+              "no": 2,
+              "key": "cv",
+              "kind": "document",
+              "text": "Curriculum Vitae in Tetum or Portuguese, signed by the candidate and two witnesses"
+            },
+            {
+              "no": 3,
+              "key": "diploma_legalised",
+              "kind": "document",
+              "text": "Copy of the latest diploma legalised by the Ministry of Higher Education (MESCC); original must be shown"
+            },
+            {
+              "no": 4,
+              "key": "birth_certificate",
+              "kind": "document",
+              "text": "Copy of RDTL birth certificate"
+            },
+            {
+              "no": 5,
+              "key": "voter_card",
+              "kind": "document",
+              "text": "Copy of voter card"
+            },
+            {
+              "no": 6,
+              "key": "bi_card",
+              "kind": "document",
+              "text": "Copy of valid RDTL identity card (Bilhete de Identidade, BI)"
+            },
+            {
+              "no": 7,
+              "key": "training_certificates",
+              "kind": "document",
+              "text": "Photocopies of the training certificates mentioned in the CV",
+              "required_if": "cv_lists_training_certificates"
+            },
+            {
+              "no": 8,
+              "key": "photo_3x4",
+              "kind": "document",
+              "text": "Colour photo 3x4, 4 copies"
+            },
+            {
+              "no": 9,
+              "key": "submission_place",
+              "kind": "place",
+              "text": "Documents are submitted at Hospital Dr. Antonio de Carvalho, Lahane"
+            }
+          ]
+        },
+        "R10": {
+          "stages": [
+            "document_assessment",
+            "written_test",
+            "interview"
+          ],
+          "eliminatory": true
+        },
+        "R11": {
+          "written_min_score": 60,
+          "scale_max": 100,
+          "inclusive_assumed": true,
+          "statute_conflict": "C1"
+        },
+        "R12": {
+          "final_pass_score": 60,
+          "method": "simple arithmetic mean of all stage scores",
+          "scale_max": 100
+        },
+        "R13": {
+          "general_weight": 0.25,
+          "specific_weight": 0.75
+        },
+        "R14": {
+          "criteria_stated": false
+        }
+      },
+      "rule_status": {
+        "R01": "code",
+        "R02": "code",
+        "R03": "partial",
+        "R04": "partial",
+        "R05": "human",
+        "R06": "partial",
+        "R07": "partial",
+        "R08": "partial",
+        "R09": "code",
+        "R10": "code",
+        "R11": "code",
+        "R12": "code",
+        "R13": "code",
+        "R14": "human"
+      },
+      "needs_human": [
+        "R05",
+        "R14"
+      ]
+    },
+    {
+      "code": "CPI/13/2026",
+      "institution": "HNGV (Hospital Nacional Guido Valadares), Ministry of Health",
+      "job_title": "Tekniku Medical Record (Medical Records Technician)",
+      "category_grade": "TDTSP Junior A/1",
+      "positions": 4,
+      "salary_usd": 510,
+      "appointment": "permanent",
+      "probation_years": 1,
+      "location": "HNGV, Dili, Timor-Leste",
+      "regime": "special career regime (rejime kareira espesial)",
+      "source_file": "2026_09_13.-TEKNIKU-MEDICAL-RECORD-TDTSP-JUNIOR-A1-CPI-13-2026.pdf",
+      "verification": {
+        "status": "ocr_unverified",
+        "note": "OCR; age, 3-month experience, pass mark 60 and 25/75 weights detected automatically; application period not detected by OCR (assumed the same, please check). Needs human check against the PDF."
+      },
+      "requirements": {
+        "R01": {
+          "citizen": true,
+          "proof_documents": [
+            "bi_card",
+            "voter_card",
+            "birth_certificate"
+          ]
+        },
+        "R02": {
+          "min_age": 20,
+          "max_age": 55,
+          "inclusive": true,
+          "reference_date_stated": false,
+          "default_reference_date": "2026-09-18",
+          "reference_date_note": "Notice does not say at which date age is measured; closing date of submission is used as a default and flagged"
+        },
+        "R03": {
+          "required_level": "licenciatura",
+          "accepted_fields": [
+            "medical records",
+            "public health"
+          ],
+          "education_text": "Licenciatura in Medical Records and Public Health",
+          "legalisation_by": "MESCC",
+          "legalisation_stated_in_ocr": null,
+          "level_rank": {
+            "bacharelatu": 1,
+            "licenciatura": 2
+          }
+        },
+        "R04": {
+          "min_months": 3,
+          "field": "medical records",
+          "facility": "health facility"
+        },
+        "R05": {
+          "languages": "Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+          "automatable": false
+        },
+        "R06": {
+          "document": "medical_certificate",
+          "due_stage": "interview"
+        },
+        "R07": {
+          "document": "good_conduct_certificate",
+          "issuer": "Ministry of Justice",
+          "due_stage": "not stated"
+        },
+        "R08": {
+          "document": "professional_card_mds",
+          "due_stage": "not stated"
+        },
+        "R09": {
+          "window_start": "2026-09-07",
+          "window_end": "2026-09-18",
+          "weekdays_only": true,
+          "hours": [
+            [
+              "08:00",
+              "12:00"
+            ],
+            [
+              "13:30",
+              "17:30"
+            ]
+          ],
+          "items": [
+            {
+              "no": 1,
+              "key": "application_letter",
+              "kind": "document",
+              "text": "Signed application letter addressed to the president of the jury panel"
+            },
+            {
+              "no": 2,
+              "key": "cv",
+              "kind": "document",
+              "text": "Curriculum Vitae in Tetum or Portuguese, signed by the candidate and two witnesses"
+            },
+            {
+              "no": 3,
+              "key": "diploma_legalised",
+              "kind": "document",
+              "text": "Copy of the latest diploma legalised by the Ministry of Higher Education (MESCC); original must be shown"
+            },
+            {
+              "no": 4,
+              "key": "birth_certificate",
+              "kind": "document",
+              "text": "Copy of RDTL birth certificate"
+            },
+            {
+              "no": 5,
+              "key": "voter_card",
+              "kind": "document",
+              "text": "Copy of voter card"
+            },
+            {
+              "no": 6,
+              "key": "bi_card",
+              "kind": "document",
+              "text": "Copy of valid RDTL identity card (Bilhete de Identidade, BI)"
+            },
+            {
+              "no": 7,
+              "key": "training_certificates",
+              "kind": "document",
+              "text": "Photocopies of the training certificates mentioned in the CV",
+              "required_if": "cv_lists_training_certificates"
+            },
+            {
+              "no": 8,
+              "key": "photo_3x4",
+              "kind": "document",
+              "text": "Colour photo 3x4, 4 copies"
+            },
+            {
+              "no": 9,
+              "key": "submission_place",
+              "kind": "place",
+              "text": "Documents are submitted at Hospital Dr. Antonio de Carvalho, Lahane"
+            }
+          ]
+        },
+        "R10": {
+          "stages": [
+            "document_assessment",
+            "written_test",
+            "interview"
+          ],
+          "eliminatory": true
+        },
+        "R11": {
+          "written_min_score": 60,
+          "scale_max": 100,
+          "inclusive_assumed": true,
+          "statute_conflict": "C1"
+        },
+        "R12": {
+          "final_pass_score": 60,
+          "method": "simple arithmetic mean of all stage scores",
+          "scale_max": 100
+        },
+        "R13": {
+          "general_weight": 0.25,
+          "specific_weight": 0.75
+        },
+        "R14": {
+          "criteria_stated": false
+        }
+      },
+      "rule_status": {
+        "R01": "code",
+        "R02": "code",
+        "R03": "partial",
+        "R04": "partial",
+        "R05": "human",
+        "R06": "partial",
+        "R07": "partial",
+        "R08": "partial",
+        "R09": "code",
+        "R10": "code",
+        "R11": "code",
+        "R12": "code",
+        "R13": "code",
+        "R14": "human"
+      },
+      "needs_human": [
+        "R05",
+        "R14"
+      ]
+    },
+    {
+      "code": "CPI/14/2026",
+      "institution": "HNGV (Hospital Nacional Guido Valadares), Ministry of Health",
+      "job_title": "Tekniku Farmacia (Pharmacy Technician)",
+      "category_grade": "TDTSP Geral, Junior A/1",
+      "positions": 5,
+      "salary_usd": 510,
+      "appointment": "permanent",
+      "probation_years": 1,
+      "location": "HNGV, Dili, Timor-Leste",
+      "regime": "special career regime (rejime kareira espesial)",
+      "source_file": "2026_09_14.-TEKNIKU-FARMACIA-TDTSP-GERAL-JUNIOR-A1-CPI-14-2026.pdf",
+      "verification": {
+        "status": "ocr_unverified",
+        "note": "OCR; age, 3-month experience, pass mark 60 and 25/75 weights detected automatically; application period not detected by OCR (assumed the same, please check). Needs human check against the PDF."
+      },
+      "requirements": {
+        "R01": {
+          "citizen": true,
+          "proof_documents": [
+            "bi_card",
+            "voter_card",
+            "birth_certificate"
+          ]
+        },
+        "R02": {
+          "min_age": 20,
+          "max_age": 55,
+          "inclusive": true,
+          "reference_date_stated": false,
+          "default_reference_date": "2026-09-18",
+          "reference_date_note": "Notice does not say at which date age is measured; closing date of submission is used as a default and flagged"
+        },
+        "R03": {
+          "required_level": "licenciatura",
+          "accepted_fields": [
+            "pharmacy",
+            "apothecary"
+          ],
+          "education_text": "Licenciatura in Pharmacy / Apothecary, legalised by MESCC",
+          "legalisation_by": "MESCC",
+          "legalisation_stated_in_ocr": true,
+          "level_rank": {
+            "bacharelatu": 1,
+            "licenciatura": 2
+          }
+        },
+        "R04": {
+          "min_months": 3,
+          "field": "pharmacy",
+          "facility": "health facility"
+        },
+        "R05": {
+          "languages": "Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+          "automatable": false
+        },
+        "R06": {
+          "document": "medical_certificate",
+          "due_stage": "interview"
+        },
+        "R07": {
+          "document": "good_conduct_certificate",
+          "issuer": "Ministry of Justice",
+          "due_stage": "not stated"
+        },
+        "R08": {
+          "document": "professional_card_mds",
+          "due_stage": "not stated"
+        },
+        "R09": {
+          "window_start": "2026-09-07",
+          "window_end": "2026-09-18",
+          "weekdays_only": true,
+          "hours": [
+            [
+              "08:00",
+              "12:00"
+            ],
+            [
+              "13:30",
+              "17:30"
+            ]
+          ],
+          "items": [
+            {
+              "no": 1,
+              "key": "application_letter",
+              "kind": "document",
+              "text": "Signed application letter addressed to the president of the jury panel"
+            },
+            {
+              "no": 2,
+              "key": "cv",
+              "kind": "document",
+              "text": "Curriculum Vitae in Tetum or Portuguese, signed by the candidate and two witnesses"
+            },
+            {
+              "no": 3,
+              "key": "diploma_legalised",
+              "kind": "document",
+              "text": "Copy of the latest diploma legalised by the Ministry of Higher Education (MESCC); original must be shown"
+            },
+            {
+              "no": 4,
+              "key": "birth_certificate",
+              "kind": "document",
+              "text": "Copy of RDTL birth certificate"
+            },
+            {
+              "no": 5,
+              "key": "voter_card",
+              "kind": "document",
+              "text": "Copy of voter card"
+            },
+            {
+              "no": 6,
+              "key": "bi_card",
+              "kind": "document",
+              "text": "Copy of valid RDTL identity card (Bilhete de Identidade, BI)"
+            },
+            {
+              "no": 7,
+              "key": "training_certificates",
+              "kind": "document",
+              "text": "Photocopies of the training certificates mentioned in the CV",
+              "required_if": "cv_lists_training_certificates"
+            },
+            {
+              "no": 8,
+              "key": "photo_3x4",
+              "kind": "document",
+              "text": "Colour photo 3x4, 4 copies"
+            },
+            {
+              "no": 9,
+              "key": "submission_place",
+              "kind": "place",
+              "text": "Documents are submitted at Hospital Dr. Antonio de Carvalho, Lahane"
+            }
+          ]
+        },
+        "R10": {
+          "stages": [
+            "document_assessment",
+            "written_test",
+            "interview"
+          ],
+          "eliminatory": true
+        },
+        "R11": {
+          "written_min_score": 60,
+          "scale_max": 100,
+          "inclusive_assumed": true,
+          "statute_conflict": "C1"
+        },
+        "R12": {
+          "final_pass_score": 60,
+          "method": "simple arithmetic mean of all stage scores",
+          "scale_max": 100
+        },
+        "R13": {
+          "general_weight": 0.25,
+          "specific_weight": 0.75
+        },
+        "R14": {
+          "criteria_stated": false
+        }
+      },
+      "rule_status": {
+        "R01": "code",
+        "R02": "code",
+        "R03": "partial",
+        "R04": "partial",
+        "R05": "human",
+        "R06": "partial",
+        "R07": "partial",
+        "R08": "partial",
+        "R09": "code",
+        "R10": "code",
+        "R11": "code",
+        "R12": "code",
+        "R13": "code",
+        "R14": "human"
+      },
+      "needs_human": [
+        "R05",
+        "R14"
+      ]
+    },
+    {
+      "code": "CPI/18/2026",
+      "institution": "HNGV (Hospital Nacional Guido Valadares), Ministry of Health",
+      "job_title": "Ofthalmologia (Refractionist)",
+      "category_grade": "TDTSP Geral, Junior B/1",
+      "positions": 2,
+      "salary_usd": 405,
+      "appointment": "permanent",
+      "probation_years": 1,
+      "location": "HNGV, Dili, Timor-Leste",
+      "regime": "special career regime (rejime kareira espesial)",
+      "source_file": "2026_09_18.-OTHALMOLOGIA-TDTSP-GERAL-JUNIOR-B1-CPI-18-2026.pdf",
+      "verification": {
+        "status": "ocr_unverified",
+        "note": "OCR; age, 3-month experience, pass mark 60 and 25/75 weights detected automatically; application period detected. Needs human check against the PDF."
+      },
+      "requirements": {
+        "R01": {
+          "citizen": true,
+          "proof_documents": [
+            "bi_card",
+            "voter_card",
+            "birth_certificate"
+          ]
+        },
+        "R02": {
+          "min_age": 20,
+          "max_age": 55,
+          "inclusive": true,
+          "reference_date_stated": false,
+          "default_reference_date": "2026-09-18",
+          "reference_date_note": "Notice does not say at which date age is measured; closing date of submission is used as a default and flagged"
+        },
+        "R03": {
+          "required_level": "bacharelatu",
+          "accepted_fields": [
+            "refractionist"
+          ],
+          "education_text": "Bacharelatu (3-year diploma) in Refractionist field",
+          "legalisation_by": "MESCC",
+          "legalisation_stated_in_ocr": null,
+          "level_rank": {
+            "bacharelatu": 1,
+            "licenciatura": 2
+          }
+        },
+        "R04": {
+          "min_months": 3,
+          "field": "refractionist",
+          "facility": "health facility"
+        },
+        "R05": {
+          "languages": "Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+          "automatable": false
+        },
+        "R06": {
+          "document": "medical_certificate",
+          "due_stage": "interview"
+        },
+        "R07": {
+          "document": "good_conduct_certificate",
+          "issuer": "Ministry of Justice",
+          "due_stage": "not stated"
+        },
+        "R08": {
+          "document": "professional_card_mds",
+          "due_stage": "not stated"
+        },
+        "R09": {
+          "window_start": "2026-09-07",
+          "window_end": "2026-09-18",
+          "weekdays_only": true,
+          "hours": [
+            [
+              "08:00",
+              "12:00"
+            ],
+            [
+              "13:30",
+              "17:30"
+            ]
+          ],
+          "items": [
+            {
+              "no": 1,
+              "key": "application_letter",
+              "kind": "document",
+              "text": "Signed application letter addressed to the president of the jury panel"
+            },
+            {
+              "no": 2,
+              "key": "cv",
+              "kind": "document",
+              "text": "Curriculum Vitae in Tetum or Portuguese, signed by the candidate and two witnesses"
+            },
+            {
+              "no": 3,
+              "key": "diploma_legalised",
+              "kind": "document",
+              "text": "Copy of the latest diploma legalised by the Ministry of Higher Education (MESCC); original must be shown"
+            },
+            {
+              "no": 4,
+              "key": "birth_certificate",
+              "kind": "document",
+              "text": "Copy of RDTL birth certificate"
+            },
+            {
+              "no": 5,
+              "key": "voter_card",
+              "kind": "document",
+              "text": "Copy of voter card"
+            },
+            {
+              "no": 6,
+              "key": "bi_card",
+              "kind": "document",
+              "text": "Copy of valid RDTL identity card (Bilhete de Identidade, BI)"
+            },
+            {
+              "no": 7,
+              "key": "training_certificates",
+              "kind": "document",
+              "text": "Photocopies of the training certificates mentioned in the CV",
+              "required_if": "cv_lists_training_certificates"
+            },
+            {
+              "no": 8,
+              "key": "photo_3x4",
+              "kind": "document",
+              "text": "Colour photo 3x4, 4 copies"
+            },
+            {
+              "no": 9,
+              "key": "submission_place",
+              "kind": "place",
+              "text": "Documents are submitted at Hospital Dr. Antonio de Carvalho, Lahane"
+            }
+          ]
+        },
+        "R10": {
+          "stages": [
+            "document_assessment",
+            "written_test",
+            "interview"
+          ],
+          "eliminatory": true
+        },
+        "R11": {
+          "written_min_score": 60,
+          "scale_max": 100,
+          "inclusive_assumed": true,
+          "statute_conflict": "C1"
+        },
+        "R12": {
+          "final_pass_score": 60,
+          "method": "simple arithmetic mean of all stage scores",
+          "scale_max": 100
+        },
+        "R13": {
+          "general_weight": 0.25,
+          "specific_weight": 0.75
+        },
+        "R14": {
+          "criteria_stated": false
+        }
+      },
+      "rule_status": {
+        "R01": "code",
+        "R02": "code",
+        "R03": "partial",
+        "R04": "partial",
+        "R05": "human",
+        "R06": "partial",
+        "R07": "partial",
+        "R08": "partial",
+        "R09": "code",
+        "R10": "code",
+        "R11": "code",
+        "R12": "code",
+        "R13": "code",
+        "R14": "human"
+      },
+      "needs_human": [
+        "R05",
+        "R14"
+      ]
+    },
+    {
+      "code": "CPI/22/2026",
+      "institution": "HNGV (Hospital Nacional Guido Valadares), Ministry of Health",
+      "job_title": "Assistente de Diagnostico e Terapeutica e Saude Publica (TDTSP-1)",
+      "category_grade": "Assistente de Diagnostico e ... (title truncated by OCR)",
+      "positions": 2,
+      "salary_usd": 250,
+      "appointment": "permanent",
+      "probation_years": 1,
+      "location": "HNGV, Dili, Timor-Leste",
+      "regime": "special career regime (rejime kareira espesial)",
+      "source_file": "2026_09_22.-ASSISTENTE-DE-DIAGNOSTICO-E-TERAPEUTICA-E-SAUDE-PUBLICA-TDTSP-1-CPI-22-2026.pdf",
+      "verification": {
+        "status": "ocr_unverified",
+        "note": "OCR; age, 3-month experience, pass mark 60 and 25/75 weights detected automatically; application period detected. Needs human check against the PDF."
+      },
+      "requirements": {
+        "R01": {
+          "citizen": true,
+          "proof_documents": [
+            "bi_card",
+            "voter_card",
+            "birth_certificate"
+          ]
+        },
+        "R02": {
+          "min_age": 20,
+          "max_age": 55,
+          "inclusive": true,
+          "reference_date_stated": false,
+          "default_reference_date": "2026-09-18",
+          "reference_date_note": "Notice does not say at which date age is measured; closing date of submission is used as a default and flagged"
+        },
+        "R03": {
+          "required_level": "bacharelatu",
+          "accepted_fields": [
+            "allied technician"
+          ],
+          "education_text": "Bacharelatu (3-year diploma) in Allied Technician field (Tekniku Aliadus)",
+          "legalisation_by": "MESCC",
+          "legalisation_stated_in_ocr": null,
+          "level_rank": {
+            "bacharelatu": 1,
+            "licenciatura": 2
+          }
+        },
+        "R04": {
+          "min_months": 3,
+          "field": "tdtsp assistant",
+          "facility": "health facility"
+        },
+        "R05": {
+          "languages": "Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+          "automatable": false
+        },
+        "R06": {
+          "document": "medical_certificate",
+          "due_stage": "interview"
+        },
+        "R07": {
+          "document": "good_conduct_certificate",
+          "issuer": "Ministry of Justice",
+          "due_stage": "not stated"
+        },
+        "R08": {
+          "document": "professional_card_mds",
+          "due_stage": "not stated"
+        },
+        "R09": {
+          "window_start": "2026-09-07",
+          "window_end": "2026-09-18",
+          "weekdays_only": true,
+          "hours": [
+            [
+              "08:00",
+              "12:00"
+            ],
+            [
+              "13:30",
+              "17:30"
+            ]
+          ],
+          "items": [
+            {
+              "no": 1,
+              "key": "application_letter",
+              "kind": "document",
+              "text": "Signed application letter addressed to the president of the jury panel"
+            },
+            {
+              "no": 2,
+              "key": "cv",
+              "kind": "document",
+              "text": "Curriculum Vitae in Tetum or Portuguese, signed by the candidate and two witnesses"
+            },
+            {
+              "no": 3,
+              "key": "diploma_legalised",
+              "kind": "document",
+              "text": "Copy of the latest diploma legalised by the Ministry of Higher Education (MESCC); original must be shown"
+            },
+            {
+              "no": 4,
+              "key": "birth_certificate",
+              "kind": "document",
+              "text": "Copy of RDTL birth certificate"
+            },
+            {
+              "no": 5,
+              "key": "voter_card",
+              "kind": "document",
+              "text": "Copy of voter card"
+            },
+            {
+              "no": 6,
+              "key": "bi_card",
+              "kind": "document",
+              "text": "Copy of valid RDTL identity card (Bilhete de Identidade, BI)"
+            },
+            {
+              "no": 7,
+              "key": "training_certificates",
+              "kind": "document",
+              "text": "Photocopies of the training certificates mentioned in the CV",
+              "required_if": "cv_lists_training_certificates"
+            },
+            {
+              "no": 8,
+              "key": "photo_3x4",
+              "kind": "document",
+              "text": "Colour photo 3x4, 4 copies"
+            },
+            {
+              "no": 9,
+              "key": "submission_place",
+              "kind": "place",
+              "text": "Documents are submitted at Hospital Dr. Antonio de Carvalho, Lahane"
+            }
+          ]
+        },
+        "R10": {
+          "stages": [
+            "document_assessment",
+            "written_test",
+            "interview"
+          ],
+          "eliminatory": true
+        },
+        "R11": {
+          "written_min_score": 60,
+          "scale_max": 100,
+          "inclusive_assumed": true,
+          "statute_conflict": "C1"
+        },
+        "R12": {
+          "final_pass_score": 60,
+          "method": "simple arithmetic mean of all stage scores",
+          "scale_max": 100
+        },
+        "R13": {
+          "general_weight": 0.25,
+          "specific_weight": 0.75
+        },
+        "R14": {
+          "criteria_stated": false
+        }
+      },
+      "rule_status": {
+        "R01": "code",
+        "R02": "code",
+        "R03": "partial",
+        "R04": "partial",
+        "R05": "human",
+        "R06": "partial",
+        "R07": "partial",
+        "R08": "partial",
+        "R09": "code",
+        "R10": "code",
+        "R11": "code",
+        "R12": "code",
+        "R13": "code",
+        "R14": "human"
+      },
+      "needs_human": [
+        "R05",
+        "R14"
+      ]
+    }
+  ],
+  "general_regime_reference": {
+    "source": "knowledge_base/documents/policy.pdf Article 14",
+    "min_age": 17,
+    "max_age": 55,
+    "note": "General statute age range, as recorded in the existing benchmark question DE04. The special-regime HNGV notices set 20-55."
+  },
+  "statute_conflicts": [
+    {
+      "id": "C1",
+      "topic": "pass mark boundary",
+      "notice": "score equal to or above 60 is suitable / written test \"valor 60\" continues",
+      "statute": "Decree-Law 34/2008 Art. 35(1): 60 points or less in an eliminatory phase = disqualified",
+      "affects": [
+        "R11",
+        "R12"
+      ],
+      "engine_flag": "statute_strict"
+    },
+    {
+      "id": "C2",
+      "topic": "minimum age",
+      "notice": "20 to 55 years (special career regime)",
+      "statute": "Law 5/2009 (amending Law 8/2004) Art. 14(b): 17 to 55 years",
+      "affects": [
+        "R02"
+      ],
+      "engine_flag": null
+    },
+    {
+      "id": "C3",
+      "topic": "official language",
+      "notice": "mastery of Tetum and Portuguese (CPI/4: Tetum + minimum Portuguese and English)",
+      "statute": "Decree-Law 34/2008 Art. 23: fluency in at least one official language",
+      "affects": [
+        "R05"
+      ],
+      "engine_flag": null
+    }
+  ],
+  "known_unprocessed": [
+    "CPI/3/2026",
+    "CPI/6/2026",
+    "CPI/9/2026",
+    "CPI/10/2026",
+    "CPI/11/2026",
+    "CPI/12/2026",
+    "CPI/15/2026",
+    "CPI/16/2026",
+    "CPI/17/2026",
+    "CPI/19/2026",
+    "CPI/20/2026",
+    "CPI/21/2026"
+  ],
+  "known_unprocessed_note": "HNGV notices published on vagas.cfp.gov.tl but not yet entered in this file. Remove a code from here when its vacancy is added to \"vacancies\".",
+  "institution_label": "the Hospital Nacional Guido Valadares (HNGV), Ministry of Health, Timor-Leste",
+  "corpus_source_label": "from the Civil Service Commission vacancy portal (vagas.cfp.gov.tl)",
+  "catalogue_title": "HNGV 2026 special-regime recruitment: rule catalogue",
+  "catalogue_intro": "This catalogue lists the rules R01-R14 found in the ten HNGV vacancy notices of 2026 and whether each rule can be coded, partly coded, or needs human judgement.",
+  "catalogue_outro": "All ten vacancy notices (CPI/1, 2, 4, 5, 7, 8, 13, 14, 18, 22 of 2026) use the same template. They differ in job title, category, number of positions, salary, qualification and field of experience.",
+  "overview_text": "Recruitment under the general career regime was suspended by Civil Service Commission circular 225/2025 of 17 April. The suspension does not cover the special career regime, which is why these notices could be published. The HNGV competition was approved by ministerial dispatch 684/GMS/IV/2026, and the jury composition was set by CFP dispatch 1020/2026/PCFP.",
+  "corpus_notes": [
+    "The notice for vacancy {code} requires good physical and mental condition, proven by a medical certificate presented at the interview stage.",
+    "The good-conduct certificate and the professional card are not part of the numbered list of documents to submit, and the notice does not say when they are submitted.",
+    "The notice does not list an experience letter among the submitted documents, so experience is evidenced only by the CV and training certificates.",
+    "The notice does not describe a language test or a minimum score.",
+    "Documents for vacancy {code} are submitted over 10 working days. The candidate must show the original documents, and the copies are submitted in a coloured folder (the colour differs between notices: green in CPI/1, blue in CPI/2).",
+    "Candidates who pass the document selection continue to the written test, and candidates who pass the written test continue to the interview.",
+    "The final classification of vacancy {code} is the simple arithmetic mean of the scores of all selection stages.",
+    "General subjects of the written test for vacancy {code} include the Constitution of the RDTL, the history of Timor-Leste and the Public Service Statute legislation.",
+    "Specific subjects for vacancy {code} include the HNGV statute, the Organic Law of the Ministry of Health, the health professional career decree-laws and the specific area of {field}.",
+    "The list of candidates admitted after document assessment, written test, interview and the final result for vacancy {code} are published at hngv.ms.gov.tl/rekrutamentu, on the official HNGV Facebook page and on the Civil Service Commission website."
+  ]
+}

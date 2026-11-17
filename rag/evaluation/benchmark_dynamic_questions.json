@@ -1,0 +1,1408 @@
+{
+  "set": "hngv_dynamic",
+  "status": "template labels; no second labeller; no results produced",
+  "questions": [
+    {
+      "id": "DY-cpi1-positions",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "How many positions does vacancy CPI/1/2026 (Medico Jeral) offer?",
+      "reference_note": "CPI/1/2026: 112 positions.",
+      "vacancy": "CPI/1/2026",
+      "template": "positions",
+      "corpus_needles": [
+        "offers 112 positions"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi1-age",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What are the minimum and maximum ages for applicants to vacancy CPI/1/2026?",
+      "reference_note": "CPI/1/2026: Age 20 to 55.",
+      "vacancy": "CPI/1/2026",
+      "template": "age",
+      "corpus_needles": [
+        "minimum age is 20",
+        "maximum age is 55"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi1-language",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "Which language skills does vacancy CPI/1/2026 require?",
+      "reference_note": "CPI/1/2026: Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+      "vacancy": "CPI/1/2026",
+      "template": "language",
+      "corpus_needles": [
+        "Tetum and Portuguese (official languages) mastered; minimum knowledge of English"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi1-probation",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What probation period applies to vacancy CPI/1/2026?",
+      "reference_note": "CPI/1/2026: 1 year.",
+      "vacancy": "CPI/1/2026",
+      "template": "probation",
+      "corpus_needles": [
+        "probation period of 1 year"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi1-conduct",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "When must a candidate for vacancy CPI/1/2026 submit the 'Bom Comportamento' good-conduct certificate?",
+      "supported_parts": [
+        "A valid Bom Comportamento certificate from the Ministry of Justice is a mandatory requirement."
+      ],
+      "unsupported_parts": [
+        "It is not in the numbered list of documents to submit; submission time is not stated."
+      ],
+      "vacancy": "CPI/1/2026",
+      "template": "conduct",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi1-english",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "How is language proficiency tested for applicants to vacancy CPI/1/2026?",
+      "supported_parts": [
+        "The required language skills are listed."
+      ],
+      "unsupported_parts": [
+        "No test method, level or minimum score is described."
+      ],
+      "vacancy": "CPI/1/2026",
+      "template": "english",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi1-testdate",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "On what date and at what venue was the written test for vacancy CPI/1/2026 held?",
+      "reference_note": "CPI/1/2026: Test date and venue are not in the vacancy notices.",
+      "vacancy": "CPI/1/2026",
+      "template": "testdate",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi1-topscore",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "What interview score did the highest-ranked candidate obtain in vacancy CPI/1/2026?",
+      "reference_note": "CPI/1/2026: No candidate results in the corpus.",
+      "vacancy": "CPI/1/2026",
+      "template": "topscore",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi2-salary",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What is the monthly salary for vacancy CPI/2/2026 (Enfermeiro/a)?",
+      "reference_note": "CPI/2/2026: USD 510.",
+      "vacancy": "CPI/2/2026",
+      "template": "salary",
+      "corpus_needles": [
+        "is 510 US dollars"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi2-experience",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "How much work experience does vacancy CPI/2/2026 require?",
+      "reference_note": "CPI/2/2026: At least 3 months in general nursing in a health facility.",
+      "vacancy": "CPI/2/2026",
+      "template": "experience",
+      "corpus_needles": [
+        "at least 3 months of work experience in general nursing"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi2-passmark",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What written-test score lets a candidate in vacancy CPI/2/2026 continue to the interview?",
+      "reference_note": "CPI/2/2026: Score of 60.",
+      "vacancy": "CPI/2/2026",
+      "template": "passmark",
+      "corpus_needles": [
+        "score of 60"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi2-medical",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "At which stage must the medical certificate be presented in vacancy CPI/2/2026?",
+      "reference_note": "CPI/2/2026: At the interview stage.",
+      "vacancy": "CPI/2/2026",
+      "template": "medical",
+      "corpus_needles": [
+        "medical certificate presented at the interview stage"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi2-stage1",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "How are applications scored in the document assessment stage of vacancy CPI/2/2026, and what score is needed to pass it?",
+      "supported_parts": [
+        "Document assessment is stage I; candidates who pass continue to the written test."
+      ],
+      "unsupported_parts": [
+        "Scoring criteria and pass score of stage I are not stated (accountability gap R14)."
+      ],
+      "vacancy": "CPI/2/2026",
+      "template": "stage1",
+      "label_confidence": "borderline",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi2-expletter",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "Does the notice for vacancy CPI/2/2026 require an employer letter as proof of the required experience?",
+      "supported_parts": [
+        "The minimum experience is stated; CV and training certificates are listed."
+      ],
+      "unsupported_parts": [
+        "An experience letter is not among the listed documents; how experience is proven is not stated."
+      ],
+      "vacancy": "CPI/2/2026",
+      "template": "expletter",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi2-applicants",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many candidates applied for vacancy CPI/2/2026?",
+      "reference_note": "CPI/2/2026: No candidate or application-count data in the corpus.",
+      "vacancy": "CPI/2/2026",
+      "template": "applicants",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi2-topscore",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "What interview score did the highest-ranked candidate obtain in vacancy CPI/2/2026?",
+      "reference_note": "CPI/2/2026: No candidate results in the corpus.",
+      "vacancy": "CPI/2/2026",
+      "template": "topscore",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi4-age",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What are the minimum and maximum ages for applicants to vacancy CPI/4/2026?",
+      "reference_note": "CPI/4/2026: Age 20 to 55.",
+      "vacancy": "CPI/4/2026",
+      "template": "age",
+      "corpus_needles": [
+        "minimum age is 20",
+        "maximum age is 55"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi4-experience",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "How much work experience does vacancy CPI/4/2026 require?",
+      "reference_note": "CPI/4/2026: At least 3 months in nursing assistant in a health facility.",
+      "vacancy": "CPI/4/2026",
+      "template": "experience",
+      "corpus_needles": [
+        "at least 3 months of work experience in nursing assistant"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi4-period",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "During which dates could applicants submit documents for vacancy CPI/4/2026?",
+      "reference_note": "CPI/4/2026: 2026-09-07 to 2026-09-18.",
+      "vacancy": "CPI/4/2026",
+      "template": "period",
+      "corpus_needles": [
+        "2026-09-07",
+        "2026-09-18"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi4-passmark",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What written-test score lets a candidate in vacancy CPI/4/2026 continue to the interview?",
+      "reference_note": "CPI/4/2026: Score of 60.",
+      "vacancy": "CPI/4/2026",
+      "template": "passmark",
+      "corpus_needles": [
+        "score of 60"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi4-stage1",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "How are applications scored in the document assessment stage of vacancy CPI/4/2026, and what score is needed to pass it?",
+      "supported_parts": [
+        "Document assessment is stage I; candidates who pass continue to the written test."
+      ],
+      "unsupported_parts": [
+        "Scoring criteria and pass score of stage I are not stated (accountability gap R14)."
+      ],
+      "vacancy": "CPI/4/2026",
+      "template": "stage1",
+      "label_confidence": "borderline",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi4-conduct",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "When must a candidate for vacancy CPI/4/2026 submit the 'Bom Comportamento' good-conduct certificate?",
+      "supported_parts": [
+        "A valid Bom Comportamento certificate from the Ministry of Justice is a mandatory requirement."
+      ],
+      "unsupported_parts": [
+        "It is not in the numbered list of documents to submit; submission time is not stated."
+      ],
+      "vacancy": "CPI/4/2026",
+      "template": "conduct",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi4-testcontent",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "Which questions were asked in the written test of vacancy CPI/4/2026?",
+      "reference_note": "CPI/4/2026: Only the programme of subjects is in the notice.",
+      "vacancy": "CPI/4/2026",
+      "template": "testcontent",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi4-topscore",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "What interview score did the highest-ranked candidate obtain in vacancy CPI/4/2026?",
+      "reference_note": "CPI/4/2026: No candidate results in the corpus.",
+      "vacancy": "CPI/4/2026",
+      "template": "topscore",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi5-age",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What are the minimum and maximum ages for applicants to vacancy CPI/5/2026?",
+      "reference_note": "CPI/5/2026: Age 20 to 55.",
+      "vacancy": "CPI/5/2026",
+      "template": "age",
+      "corpus_needles": [
+        "minimum age is 20",
+        "maximum age is 55"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi5-period",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "During which dates could applicants submit documents for vacancy CPI/5/2026?",
+      "reference_note": "CPI/5/2026: 2026-09-07 to 2026-09-18.",
+      "vacancy": "CPI/5/2026",
+      "template": "period",
+      "corpus_needles": [
+        "2026-09-07",
+        "2026-09-18"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi5-hours",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What are the daily document-submission hours for vacancy CPI/5/2026?",
+      "reference_note": "CPI/5/2026: 08:00-12:00 and 13:30-17:30 on working days.",
+      "vacancy": "CPI/5/2026",
+      "template": "hours",
+      "corpus_needles": [
+        "08:00-12:00 and 13:30-17:30"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi5-medical",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "At which stage must the medical certificate be presented in vacancy CPI/5/2026?",
+      "reference_note": "CPI/5/2026: At the interview stage.",
+      "vacancy": "CPI/5/2026",
+      "template": "medical",
+      "corpus_needles": [
+        "medical certificate presented at the interview stage"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi5-stage1",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "How are applications scored in the document assessment stage of vacancy CPI/5/2026, and what score is needed to pass it?",
+      "supported_parts": [
+        "Document assessment is stage I; candidates who pass continue to the written test."
+      ],
+      "unsupported_parts": [
+        "Scoring criteria and pass score of stage I are not stated (accountability gap R14)."
+      ],
+      "vacancy": "CPI/5/2026",
+      "template": "stage1",
+      "label_confidence": "borderline",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi5-expletter",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "Does the notice for vacancy CPI/5/2026 require an employer letter as proof of the required experience?",
+      "supported_parts": [
+        "The minimum experience is stated; CV and training certificates are listed."
+      ],
+      "unsupported_parts": [
+        "An experience letter is not among the listed documents; how experience is proven is not stated."
+      ],
+      "vacancy": "CPI/5/2026",
+      "template": "expletter",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi5-applicants",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many candidates applied for vacancy CPI/5/2026?",
+      "reference_note": "CPI/5/2026: No candidate or application-count data in the corpus.",
+      "vacancy": "CPI/5/2026",
+      "template": "applicants",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi5-testcontent",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "Which questions were asked in the written test of vacancy CPI/5/2026?",
+      "reference_note": "CPI/5/2026: Only the programme of subjects is in the notice.",
+      "vacancy": "CPI/5/2026",
+      "template": "testcontent",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi7-age",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What are the minimum and maximum ages for applicants to vacancy CPI/7/2026?",
+      "reference_note": "CPI/7/2026: Age 20 to 55.",
+      "vacancy": "CPI/7/2026",
+      "template": "age",
+      "corpus_needles": [
+        "minimum age is 20",
+        "maximum age is 55"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi7-education",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "Which qualification is required for vacancy CPI/7/2026 (Tekniku Radiologista)?",
+      "reference_note": "CPI/7/2026: Licenciatura in Radiology",
+      "vacancy": "CPI/7/2026",
+      "template": "education",
+      "corpus_needles": [
+        "Licenciatura in Radiology"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi7-hours",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What are the daily document-submission hours for vacancy CPI/7/2026?",
+      "reference_note": "CPI/7/2026: 08:00-12:00 and 13:30-17:30 on working days.",
+      "vacancy": "CPI/7/2026",
+      "template": "hours",
+      "corpus_needles": [
+        "08:00-12:00 and 13:30-17:30"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi7-medical",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "At which stage must the medical certificate be presented in vacancy CPI/7/2026?",
+      "reference_note": "CPI/7/2026: At the interview stage.",
+      "vacancy": "CPI/7/2026",
+      "template": "medical",
+      "corpus_needles": [
+        "medical certificate presented at the interview stage"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi7-conduct",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "When must a candidate for vacancy CPI/7/2026 submit the 'Bom Comportamento' good-conduct certificate?",
+      "supported_parts": [
+        "A valid Bom Comportamento certificate from the Ministry of Justice is a mandatory requirement."
+      ],
+      "unsupported_parts": [
+        "It is not in the numbered list of documents to submit; submission time is not stated."
+      ],
+      "vacancy": "CPI/7/2026",
+      "template": "conduct",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi7-agedate",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "On what date is an applicant's age measured to check the age limits in vacancy CPI/7/2026?",
+      "supported_parts": [
+        "The age limits are stated and proven by identity documents."
+      ],
+      "unsupported_parts": [
+        "The reference date (closing date, test date, appointment date) is not stated."
+      ],
+      "vacancy": "CPI/7/2026",
+      "template": "agedate",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi7-applicants",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many candidates applied for vacancy CPI/7/2026?",
+      "reference_note": "CPI/7/2026: No candidate or application-count data in the corpus.",
+      "vacancy": "CPI/7/2026",
+      "template": "applicants",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi7-testdate",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "On what date and at what venue was the written test for vacancy CPI/7/2026 held?",
+      "reference_note": "CPI/7/2026: Test date and venue are not in the vacancy notices.",
+      "vacancy": "CPI/7/2026",
+      "template": "testdate",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi8-age",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What are the minimum and maximum ages for applicants to vacancy CPI/8/2026?",
+      "reference_note": "CPI/8/2026: Age 20 to 55.",
+      "vacancy": "CPI/8/2026",
+      "template": "age",
+      "corpus_needles": [
+        "minimum age is 20",
+        "maximum age is 55"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi8-education",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "Which qualification is required for vacancy CPI/8/2026 (Tekniku Analista Laboratorio)?",
+      "reference_note": "CPI/8/2026: Licenciatura in Clinical Laboratory / Pathology, legalised by MESCC",
+      "vacancy": "CPI/8/2026",
+      "template": "education",
+      "corpus_needles": [
+        "Licenciatura in Clinical Laboratory / Pathology, legalised by MESCC"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi8-language",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "Which language skills does vacancy CPI/8/2026 require?",
+      "reference_note": "CPI/8/2026: Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+      "vacancy": "CPI/8/2026",
+      "template": "language",
+      "corpus_needles": [
+        "Tetum and Portuguese (official languages) mastered; minimum knowledge of English"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi8-hours",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What are the daily document-submission hours for vacancy CPI/8/2026?",
+      "reference_note": "CPI/8/2026: 08:00-12:00 and 13:30-17:30 on working days.",
+      "vacancy": "CPI/8/2026",
+      "template": "hours",
+      "corpus_needles": [
+        "08:00-12:00 and 13:30-17:30"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi8-stage1",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "How are applications scored in the document assessment stage of vacancy CPI/8/2026, and what score is needed to pass it?",
+      "supported_parts": [
+        "Document assessment is stage I; candidates who pass continue to the written test."
+      ],
+      "unsupported_parts": [
+        "Scoring criteria and pass score of stage I are not stated (accountability gap R14)."
+      ],
+      "vacancy": "CPI/8/2026",
+      "template": "stage1",
+      "label_confidence": "borderline",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi8-agedate",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "On what date is an applicant's age measured to check the age limits in vacancy CPI/8/2026?",
+      "supported_parts": [
+        "The age limits are stated and proven by identity documents."
+      ],
+      "unsupported_parts": [
+        "The reference date (closing date, test date, appointment date) is not stated."
+      ],
+      "vacancy": "CPI/8/2026",
+      "template": "agedate",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi8-testcontent",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "Which questions were asked in the written test of vacancy CPI/8/2026?",
+      "reference_note": "CPI/8/2026: Only the programme of subjects is in the notice.",
+      "vacancy": "CPI/8/2026",
+      "template": "testcontent",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi8-topscore",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "What interview score did the highest-ranked candidate obtain in vacancy CPI/8/2026?",
+      "reference_note": "CPI/8/2026: No candidate results in the corpus.",
+      "vacancy": "CPI/8/2026",
+      "template": "topscore",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi13-positions",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "How many positions does vacancy CPI/13/2026 (Tekniku Medical Record) offer?",
+      "reference_note": "CPI/13/2026: 4 positions.",
+      "vacancy": "CPI/13/2026",
+      "template": "positions",
+      "corpus_needles": [
+        "offers 4 positions"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi13-education",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "Which qualification is required for vacancy CPI/13/2026 (Tekniku Medical Record)?",
+      "reference_note": "CPI/13/2026: Licenciatura in Medical Records and Public Health",
+      "vacancy": "CPI/13/2026",
+      "template": "education",
+      "corpus_needles": [
+        "Licenciatura in Medical Records and Public Health"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi13-language",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "Which language skills does vacancy CPI/13/2026 require?",
+      "reference_note": "CPI/13/2026: Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+      "vacancy": "CPI/13/2026",
+      "template": "language",
+      "corpus_needles": [
+        "Tetum and Portuguese (official languages) mastered; minimum knowledge of English"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi13-hours",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What are the daily document-submission hours for vacancy CPI/13/2026?",
+      "reference_note": "CPI/13/2026: 08:00-12:00 and 13:30-17:30 on working days.",
+      "vacancy": "CPI/13/2026",
+      "template": "hours",
+      "corpus_needles": [
+        "08:00-12:00 and 13:30-17:30"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi13-stage1",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "How are applications scored in the document assessment stage of vacancy CPI/13/2026, and what score is needed to pass it?",
+      "supported_parts": [
+        "Document assessment is stage I; candidates who pass continue to the written test."
+      ],
+      "unsupported_parts": [
+        "Scoring criteria and pass score of stage I are not stated (accountability gap R14)."
+      ],
+      "vacancy": "CPI/13/2026",
+      "template": "stage1",
+      "label_confidence": "borderline",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi13-expletter",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "Does the notice for vacancy CPI/13/2026 require an employer letter as proof of the required experience?",
+      "supported_parts": [
+        "The minimum experience is stated; CV and training certificates are listed."
+      ],
+      "unsupported_parts": [
+        "An experience letter is not among the listed documents; how experience is proven is not stated."
+      ],
+      "vacancy": "CPI/13/2026",
+      "template": "expletter",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi13-testdate",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "On what date and at what venue was the written test for vacancy CPI/13/2026 held?",
+      "reference_note": "CPI/13/2026: Test date and venue are not in the vacancy notices.",
+      "vacancy": "CPI/13/2026",
+      "template": "testdate",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi13-topscore",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "What interview score did the highest-ranked candidate obtain in vacancy CPI/13/2026?",
+      "reference_note": "CPI/13/2026: No candidate results in the corpus.",
+      "vacancy": "CPI/13/2026",
+      "template": "topscore",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi14-positions",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "How many positions does vacancy CPI/14/2026 (Tekniku Farmacia) offer?",
+      "reference_note": "CPI/14/2026: 5 positions.",
+      "vacancy": "CPI/14/2026",
+      "template": "positions",
+      "corpus_needles": [
+        "offers 5 positions"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi14-experience",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "How much work experience does vacancy CPI/14/2026 require?",
+      "reference_note": "CPI/14/2026: At least 3 months in pharmacy in a health facility.",
+      "vacancy": "CPI/14/2026",
+      "template": "experience",
+      "corpus_needles": [
+        "at least 3 months of work experience in pharmacy"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi14-passmark",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What written-test score lets a candidate in vacancy CPI/14/2026 continue to the interview?",
+      "reference_note": "CPI/14/2026: Score of 60.",
+      "vacancy": "CPI/14/2026",
+      "template": "passmark",
+      "corpus_needles": [
+        "score of 60"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi14-probation",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What probation period applies to vacancy CPI/14/2026?",
+      "reference_note": "CPI/14/2026: 1 year.",
+      "vacancy": "CPI/14/2026",
+      "template": "probation",
+      "corpus_needles": [
+        "probation period of 1 year"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi14-conduct",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "When must a candidate for vacancy CPI/14/2026 submit the 'Bom Comportamento' good-conduct certificate?",
+      "supported_parts": [
+        "A valid Bom Comportamento certificate from the Ministry of Justice is a mandatory requirement."
+      ],
+      "unsupported_parts": [
+        "It is not in the numbered list of documents to submit; submission time is not stated."
+      ],
+      "vacancy": "CPI/14/2026",
+      "template": "conduct",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi14-agedate",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "On what date is an applicant's age measured to check the age limits in vacancy CPI/14/2026?",
+      "supported_parts": [
+        "The age limits are stated and proven by identity documents."
+      ],
+      "unsupported_parts": [
+        "The reference date (closing date, test date, appointment date) is not stated."
+      ],
+      "vacancy": "CPI/14/2026",
+      "template": "agedate",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi14-testcontent",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "Which questions were asked in the written test of vacancy CPI/14/2026?",
+      "reference_note": "CPI/14/2026: Only the programme of subjects is in the notice.",
+      "vacancy": "CPI/14/2026",
+      "template": "testcontent",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi14-topscore",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "What interview score did the highest-ranked candidate obtain in vacancy CPI/14/2026?",
+      "reference_note": "CPI/14/2026: No candidate results in the corpus.",
+      "vacancy": "CPI/14/2026",
+      "template": "topscore",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi18-age",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What are the minimum and maximum ages for applicants to vacancy CPI/18/2026?",
+      "reference_note": "CPI/18/2026: Age 20 to 55.",
+      "vacancy": "CPI/18/2026",
+      "template": "age",
+      "corpus_needles": [
+        "minimum age is 20",
+        "maximum age is 55"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi18-education",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "Which qualification is required for vacancy CPI/18/2026 (Ofthalmologia)?",
+      "reference_note": "CPI/18/2026: Bacharelatu (3-year diploma) in Refractionist field",
+      "vacancy": "CPI/18/2026",
+      "template": "education",
+      "corpus_needles": [
+        "Bacharelatu (3-year diploma) in Refractionist field"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi18-language",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "Which language skills does vacancy CPI/18/2026 require?",
+      "reference_note": "CPI/18/2026: Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+      "vacancy": "CPI/18/2026",
+      "template": "language",
+      "corpus_needles": [
+        "Tetum and Portuguese (official languages) mastered; minimum knowledge of English"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi18-period",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "During which dates could applicants submit documents for vacancy CPI/18/2026?",
+      "reference_note": "CPI/18/2026: 2026-09-07 to 2026-09-18.",
+      "vacancy": "CPI/18/2026",
+      "template": "period",
+      "corpus_needles": [
+        "2026-09-07",
+        "2026-09-18"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi18-stage1",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "How are applications scored in the document assessment stage of vacancy CPI/18/2026, and what score is needed to pass it?",
+      "supported_parts": [
+        "Document assessment is stage I; candidates who pass continue to the written test."
+      ],
+      "unsupported_parts": [
+        "Scoring criteria and pass score of stage I are not stated (accountability gap R14)."
+      ],
+      "vacancy": "CPI/18/2026",
+      "template": "stage1",
+      "label_confidence": "borderline",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi18-english",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "How is language proficiency tested for applicants to vacancy CPI/18/2026?",
+      "supported_parts": [
+        "The required language skills are listed."
+      ],
+      "unsupported_parts": [
+        "No test method, level or minimum score is described."
+      ],
+      "vacancy": "CPI/18/2026",
+      "template": "english",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi18-testdate",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "On what date and at what venue was the written test for vacancy CPI/18/2026 held?",
+      "reference_note": "CPI/18/2026: Test date and venue are not in the vacancy notices.",
+      "vacancy": "CPI/18/2026",
+      "template": "testdate",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi18-topscore",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "What interview score did the highest-ranked candidate obtain in vacancy CPI/18/2026?",
+      "reference_note": "CPI/18/2026: No candidate results in the corpus.",
+      "vacancy": "CPI/18/2026",
+      "template": "topscore",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi22-experience",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "How much work experience does vacancy CPI/22/2026 require?",
+      "reference_note": "CPI/22/2026: At least 3 months in tdtsp assistant in a health facility.",
+      "vacancy": "CPI/22/2026",
+      "template": "experience",
+      "corpus_needles": [
+        "at least 3 months of work experience in tdtsp assistant"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi22-language",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "Which language skills does vacancy CPI/22/2026 require?",
+      "reference_note": "CPI/22/2026: Tetum and Portuguese (official languages) mastered; minimum knowledge of English",
+      "vacancy": "CPI/22/2026",
+      "template": "language",
+      "corpus_needles": [
+        "Tetum and Portuguese (official languages) mastered; minimum knowledge of English"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi22-passmark",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What written-test score lets a candidate in vacancy CPI/22/2026 continue to the interview?",
+      "reference_note": "CPI/22/2026: Score of 60.",
+      "vacancy": "CPI/22/2026",
+      "template": "passmark",
+      "corpus_needles": [
+        "score of 60"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi22-probation",
+      "category": "hngv_direct",
+      "expected": "supported",
+      "question": "What probation period applies to vacancy CPI/22/2026?",
+      "reference_note": "CPI/22/2026: 1 year.",
+      "vacancy": "CPI/22/2026",
+      "template": "probation",
+      "corpus_needles": [
+        "probation period of 1 year"
+      ],
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi22-stage1",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "How are applications scored in the document assessment stage of vacancy CPI/22/2026, and what score is needed to pass it?",
+      "supported_parts": [
+        "Document assessment is stage I; candidates who pass continue to the written test."
+      ],
+      "unsupported_parts": [
+        "Scoring criteria and pass score of stage I are not stated (accountability gap R14)."
+      ],
+      "vacancy": "CPI/22/2026",
+      "template": "stage1",
+      "label_confidence": "borderline",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi22-english",
+      "category": "hngv_partial",
+      "expected": "partially_supported",
+      "question": "How is language proficiency tested for applicants to vacancy CPI/22/2026?",
+      "supported_parts": [
+        "The required language skills are listed."
+      ],
+      "unsupported_parts": [
+        "No test method, level or minimum score is described."
+      ],
+      "vacancy": "CPI/22/2026",
+      "template": "english",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi22-applicants",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many candidates applied for vacancy CPI/22/2026?",
+      "reference_note": "CPI/22/2026: No candidate or application-count data in the corpus.",
+      "vacancy": "CPI/22/2026",
+      "template": "applicants",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi22-testdate",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "On what date and at what venue was the written test for vacancy CPI/22/2026 held?",
+      "reference_note": "CPI/22/2026: Test date and venue are not in the vacancy notices.",
+      "vacancy": "CPI/22/2026",
+      "template": "testdate",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi3-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/3/2026 offer?",
+      "reference_note": "CPI/3/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/3/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi6-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/6/2026 offer?",
+      "reference_note": "CPI/6/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/6/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi9-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/9/2026 offer?",
+      "reference_note": "CPI/9/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/9/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi10-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/10/2026 offer?",
+      "reference_note": "CPI/10/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/10/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi11-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/11/2026 offer?",
+      "reference_note": "CPI/11/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/11/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi12-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/12/2026 offer?",
+      "reference_note": "CPI/12/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/12/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi15-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/15/2026 offer?",
+      "reference_note": "CPI/15/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/15/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi16-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/16/2026 offer?",
+      "reference_note": "CPI/16/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/16/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi17-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/17/2026 offer?",
+      "reference_note": "CPI/17/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/17/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi19-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/19/2026 offer?",
+      "reference_note": "CPI/19/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/19/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi20-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/20/2026 offer?",
+      "reference_note": "CPI/20/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/20/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-cpi21-positions",
+      "category": "hngv_unsupported",
+      "expected": "unsupported",
+      "question": "How many positions does vacancy CPI/21/2026 offer?",
+      "reference_note": "CPI/21/2026 is not in the corpus (notice not yet processed).",
+      "vacancy": "CPI/21/2026",
+      "template": "unprocessed",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-conflict-c1",
+      "category": "hngv_cross_source",
+      "expected": "supported",
+      "question": "On pass mark boundary, what do the HNGV notices say and what does the statute say?",
+      "reference_note": "Notices: score equal to or above 60 is suitable / written test \"valor 60\" continues. Statute: Decree-Law 34/2008 Art. 35(1): 60 points or less in an eliminatory phase = disqualified.",
+      "conflict": "C1",
+      "template": "conflict",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-conflict-c2",
+      "category": "hngv_cross_source",
+      "expected": "supported",
+      "question": "On minimum age, what do the HNGV notices say and what does the statute say?",
+      "reference_note": "Notices: 20 to 55 years (special career regime). Statute: Law 5/2009 (amending Law 8/2004) Art. 14(b): 17 to 55 years.",
+      "conflict": "C2",
+      "template": "conflict",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-conflict-c3",
+      "category": "hngv_cross_source",
+      "expected": "supported",
+      "question": "On official language, what do the HNGV notices say and what does the statute say?",
+      "reference_note": "Notices: mastery of Tetum and Portuguese (CPI/4: Tetum + minimum Portuguese and English). Statute: Decree-Law 34/2008 Art. 23: fluency in at least one official language.",
+      "conflict": "C3",
+      "template": "conflict",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-temporal-open-now",
+      "category": "hngv_temporal",
+      "expected": "unsupported",
+      "question": "Are applications for the HNGV special-regime vacancies still open today?",
+      "reference_note": "Depends on today's date or later events; corpus is a September 2026 snapshot.",
+      "template": "temporal",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-temporal-final-list",
+      "category": "hngv_temporal",
+      "expected": "unsupported",
+      "question": "Has the final result list of the HNGV 2026 competition been published, and who ranked first?",
+      "reference_note": "Depends on today's date or later events; corpus is a September 2026 snapshot.",
+      "template": "temporal",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    },
+    {
+      "id": "DY-temporal-new-vacancies",
+      "category": "hngv_temporal",
+      "expected": "unsupported",
+      "question": "Which new HNGV vacancies were announced after September 2026?",
+      "reference_note": "Depends on today's date or later events; corpus is a September 2026 snapshot.",
+      "template": "temporal",
+      "label_confidence": "high",
+      "generated": true,
+      "labeler_2": null
+    }
+  ]
+}

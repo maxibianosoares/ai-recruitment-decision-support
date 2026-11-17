@@ -9,7 +9,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from rag.evaluation.questions import BENCHMARK_QUESTIONS
 
-RESULTS_FILE = PROJECT_ROOT / "rag" / "evaluation" / "benchmark_40_results.json"
+from rag.evaluation.benchmark_sets import RESULT_FILES, current_set, load_set, result_file
+
+_SET = current_set()   # BENCHMARK_SET env var, same switch as run_benchmark.py
+RESULTS_FILE = PROJECT_ROOT / "rag" / "evaluation" / result_file(_SET)
+BENCHMARK_QUESTIONS = load_set(_SET)
 
 with open(RESULTS_FILE, "r", encoding="utf-8") as f:
     data = json.load(f)

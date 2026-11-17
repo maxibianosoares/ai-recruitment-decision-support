@@ -1,0 +1,44 @@
+{
+  "dataset": "timor_leste_reference_law_baseline",
+  "version": "0.1.0",
+  "generated": "2026-11-17",
+  "status": "Transcribed by hand from the PDFs already in knowledge_base/documents (the RAG reference law). Verify article numbers before citing in the paper.",
+  "authority_note": "These constraints come from statutes in the RAG corpus. A vacancy notice is a secondary source: where it differs, the engine flags a conflict instead of silently following the notice.",
+  "constraints": {
+    "age": {
+      "min": 17, "max": 55, "inclusive": true,
+      "citation": "Law 5/2009 (amends Law 8/2004), requirement (b): at least 17 and at most 55 years. Repo benchmark note DE04 cites it as Art. 14.",
+      "rag_source": "policy.pdf"
+    },
+    "pass_mark": {
+      "threshold": 60, "scale_max": 100, "rule": "disqualified_if_score_less_than_or_equal_to_threshold",
+      "citation": "Decree-Law 34/2008 Art. 35(1): 60 points or less in an eliminatory phase = disqualified",
+      "rag_source": "Decree Law 34-2008.pdf"
+    },
+    "final_classification": {
+      "method": "simple or weighted arithmetic average of all selection methods",
+      "citation": "Decree-Law 34/2008 Art. 35(2)",
+      "rag_source": "Decree Law 34-2008.pdf"
+    },
+    "language": {
+      "min_official_languages": 1,
+      "citation": "Decree-Law 34/2008 Art. 23: fluency in at least one official language",
+      "rag_source": "Decree Law 34-2008.pdf"
+    },
+    "probation_months": {
+      "value": 12,
+      "citation": "Decree-Law 34/2008 Art. 43(1): twelve months",
+      "rag_source": "Decree Law 34-2008.pdf"
+    },
+    "appeal_working_days": {
+      "value": 5,
+      "citation": "Decree-Law 34/2008 Art. 33(1): 5 working days to appeal an exclusion",
+      "rag_source": "Decree Law 34-2008.pdf"
+    },
+    "medical_exam": {
+      "eliminatory": true,
+      "citation": "Decree-Law 34/2008 Art. 24: medical selection exam is eliminatory, public competitions only",
+      "rag_source": "Decree Law 34-2008.pdf"
+    }
+  }
+}

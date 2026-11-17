@@ -38,11 +38,19 @@ from rag.evaluation.questions import BENCHMARK_QUESTIONS
 # OUTPUT FILE
 # =========================================================
 
+# Question set is chosen with the BENCHMARK_SET env var (see
+# rag/evaluation/benchmark_sets.py): baseline (default, unchanged) | hngv |
+# dynamic | combined | all. Each set has its own results file; the baseline
+# results file is never overwritten by the others.
+from rag.evaluation.benchmark_sets import RESULT_FILES, current_set, load_set, result_file
+
+BENCHMARK_SET = current_set()
+
 OUTPUT_FILE = (
     PROJECT_ROOT
     / "rag"
     / "evaluation"
-    / "benchmark_40_results.json"
+    / result_file(BENCHMARK_SET)
 )
 
 
@@ -52,7 +60,7 @@ OUTPUT_FILE = (
 
 def load_benchmark():
 
-    return BENCHMARK_QUESTIONS
+    return load_set(BENCHMARK_SET)
 
 # =========================================================
 # RUN BENCHMARK
