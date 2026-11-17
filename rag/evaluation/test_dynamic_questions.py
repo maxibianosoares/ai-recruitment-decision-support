@@ -128,7 +128,22 @@ class Dynamic(unittest.TestCase):
             os.unlink(f.name)
 
 
-class Sets(unittest.TestCase):
+_BENCH_ENV = ("BENCHMARK_SET", "BENCHMARK_IDS", "BENCHMARK_TAG", "BENCHMARK_QUESTIONS_FILE")
+
+
+class _CleanBenchEnv(unittest.TestCase):
+    """Tests must not depend on BENCHMARK_* variables left in the caller's shell."""
+
+    def setUp(self):
+        self._saved = {k: os.environ.pop(k) for k in _BENCH_ENV if k in os.environ}
+
+    def tearDown(self):
+        for k in _BENCH_ENV:
+            os.environ.pop(k, None)
+        os.environ.update(self._saved)
+
+
+class Sets(_CleanBenchEnv):
     def test_set_sizes(self):
         n = {k: len(bs.load_set(k)) for k in bs.RESULT_FILES if k != "generated"}   # "generated" is opt-in and needs a file
         self.assertEqual(n["baseline"], 40)

@@ -217,6 +217,17 @@ class QuestionGenerator(unittest.TestCase):
 
 
 class GeneratedSet(unittest.TestCase):
+    def setUp(self):
+        import os
+        keys = ("BENCHMARK_SET", "BENCHMARK_IDS", "BENCHMARK_TAG", "BENCHMARK_QUESTIONS_FILE")
+        self._saved = {k: os.environ.pop(k) for k in keys if k in os.environ}
+
+    def tearDown(self):
+        import os
+        for k in ("BENCHMARK_SET", "BENCHMARK_IDS", "BENCHMARK_TAG", "BENCHMARK_QUESTIONS_FILE"):
+            os.environ.pop(k, None)
+        os.environ.update(self._saved)
+
     def test_generated_set_is_opt_in_and_needs_a_file(self):
         import os
         from rag.evaluation import benchmark_sets as bs
