@@ -1,0 +1,214 @@
+{
+    "metrics": {
+        "total_questions": 20,
+        "correct": 15,
+        "accuracy": 0.75,
+        "average_coverage": 0.6,
+        "average_evidence_score": 70.55799999999999,
+        "grounded_rate": 0.9,
+        "false_acceptance": 0,
+        "false_rejection": 1
+    },
+    "results": [
+        {
+            "id": "PE01",
+            "question": "What does the AI recruitment system do, and what salary should the selected candidate receive?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 72.16,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "PE03",
+            "question": "The Commission ensures merit-based recruitment - but what exact score threshold does the AI system use to reject a candidate?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 76.19,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "PE09",
+            "question": "A candidate must meet a minimum age to be recruited - but what is the minimum required years of prior work experience?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 71.55,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "PE10",
+            "question": "The recruitment law authorizes the Commission to open competitions - but what is the maximum number of days a competition must stay open for applications?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 80.01,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "OS07",
+            "question": "What programming languages are required for a software engineering job at a private tech company?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 51.37,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "RS02",
+            "question": "What happens if a jury member fails to meet the deadlines required for their jury duties?",
+            "expected": "supported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 61.31,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "DE02",
+            "question": "What information should every AI recommendation provide?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 71.66,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "DE04",
+            "question": "What is the minimum age requirement to apply for a permanent position in the Public Administration?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 85.15,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "DE06",
+            "question": "Which body has the authority to open a recruitment competition for Public Service careers?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 74.28,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "DE08",
+            "question": "Who acts as secretary of the selection jury during a recruitment competition?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 65.4,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "DE10",
+            "question": "What principle governs the selection and recruitment of personnel according to the civil service law?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 77.28,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "PE02",
+            "question": "Can AI rank candidates and determine their monthly salary?",
+            "expected": "partially_supported",
+            "actual": "partially_supported",
+            "coverage": 0.5,
+            "evidence_score": 65.27,
+            "grounded": false,
+            "correct": true
+        },
+        {
+            "id": "PE05",
+            "question": "Public servants are entitled to several types of paid leave - but how many days of annual leave is a new recruit entitled to in their first year?",
+            "expected": "partially_supported",
+            "actual": "partially_supported",
+            "coverage": 0.5,
+            "evidence_score": 71.47,
+            "grounded": false,
+            "correct": true
+        },
+        {
+            "id": "OS01",
+            "question": "What is the monthly salary of a civil servant in Timor-Leste?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 70.31,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "OS03",
+            "question": "How do I apply for a Timor-Leste passport?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 69.5,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "OS05",
+            "question": "What is the weather forecast for Dili this week?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 52.55,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "TC01",
+            "question": "Who is the current President of Timor-Leste?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 73.12,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "TC03",
+            "question": "Who is the current Chairperson of the Civil Service Commission?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 65.46,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "RS01",
+            "question": "Who may not be appointed as a Commissioner of the Civil Service Commission?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 79.1,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "RS03",
+            "question": "How many commissioners must be present at minimum for a Commission decision to be approved?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 78.02,
+            "grounded": true,
+            "correct": true
+        }
+    ]
+}

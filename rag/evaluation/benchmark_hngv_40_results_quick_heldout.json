@@ -1,0 +1,244 @@
+{
+    "metrics": {
+        "total_questions": 23,
+        "correct": 13,
+        "accuracy": 0.5652173913043478,
+        "average_coverage": 0.8695652173913043,
+        "average_evidence_score": 77.08739130434783,
+        "grounded_rate": 0.9130434782608695,
+        "false_acceptance": 6,
+        "false_rejection": 0
+    },
+    "results": [
+        {
+            "id": "HD02",
+            "question": "How many positions does vacancy CPI/2/2026 for nurses offer?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 77.59,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD03",
+            "question": "What is the monthly salary for the Nursing Assistant vacancy CPI/4/2026?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 80.29,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD04",
+            "question": "What is the monthly salary offered in vacancy CPI/18/2026 for the refractionist (ophthalmology) position?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 81.09,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD05",
+            "question": "Which qualification is required for the Midwife vacancy CPI/5/2026?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 87.11,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD06",
+            "question": "How much work experience is required for the Radiology Technician vacancy CPI/7/2026?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 82.79,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD08",
+            "question": "What are the daily submission hours for application documents in vacancy CPI/1/2026?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 83.78,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD10",
+            "question": "In what order are the selection stages of vacancy CPI/13/2026 carried out?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 84.63,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD11",
+            "question": "What written-test score allows a candidate in vacancy CPI/8/2026 to continue to the interview?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 83.74,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD12",
+            "question": "Where are the results of the HNGV competition published?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 70.05,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD14",
+            "question": "What type of appointment and probation period apply to the HNGV 2026 vacancy CPI/1/2026?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 81.35,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HP03",
+            "question": "How is English proficiency tested for applicants to vacancy CPI/2/2026?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 76.28,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "HP04",
+            "question": "Does the notice for vacancy CPI/5/2026 require an employer letter as proof of the 3 months of experience?",
+            "expected": "partially_supported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 80.62,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "HP06",
+            "question": "Which exact diploma does the Nursing Assistant vacancy CPI/4/2026 require?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 77.93,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "HP07",
+            "question": "How are the 112 positions of vacancy CPI/1/2026 allocated among candidates who score above the pass mark?",
+            "expected": "partially_supported",
+            "actual": "partially_supported",
+            "coverage": 0.5,
+            "evidence_score": 77.13,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HP08",
+            "question": "What weight does the document assessment stage have in the final classification of vacancy CPI/22/2026?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 82.52,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "HU03",
+            "question": "Which questions were asked in the written test of vacancy CPI/2/2026?",
+            "expected": "unsupported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 77.13,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "HU04",
+            "question": "On what date and at what venue was the written test for vacancy CPI/5/2026 held?",
+            "expected": "unsupported",
+            "actual": "partially_supported",
+            "coverage": 0.5,
+            "evidence_score": 77.57,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "HU06",
+            "question": "What are the outpatient clinic opening hours at the Hospital Nacional Guido Valadares?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 59.68,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HU07",
+            "question": "How many teaching positions did the Ministry of Education announce for 2026?",
+            "expected": "unsupported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 64.83,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "HU08",
+            "question": "What interview score did the highest-ranked candidate obtain in vacancy CPI/7/2026?",
+            "expected": "unsupported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 75.81,
+            "grounded": false,
+            "correct": false
+        },
+        {
+            "id": "HX03",
+            "question": "How long is the probation period under Decree-Law 34/2008, and how long is it in the HNGV notices?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 67.1,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HT02",
+            "question": "Has the final result list of vacancy CPI/1/2026 been published, and who ranked first?",
+            "expected": "unsupported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 75.05,
+            "grounded": false,
+            "correct": false
+        },
+        {
+            "id": "HT03",
+            "question": "Which new HNGV vacancies were announced after September 2026?",
+            "expected": "unsupported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 68.94,
+            "grounded": true,
+            "correct": false
+        }
+    ]
+}

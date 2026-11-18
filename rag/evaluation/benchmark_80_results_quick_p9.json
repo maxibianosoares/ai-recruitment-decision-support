@@ -1,0 +1,214 @@
+{
+    "metrics": {
+        "total_questions": 20,
+        "correct": 13,
+        "accuracy": 0.65,
+        "average_coverage": 0.7,
+        "average_evidence_score": 76.412,
+        "grounded_rate": 0.85,
+        "false_acceptance": 1,
+        "false_rejection": 0
+    },
+    "results": [
+        {
+            "id": "HD01",
+            "question": "What are the minimum and maximum ages for applicants to vacancy CPI/1/2026 (General Doctor) at HNGV?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 81.31,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD07",
+            "question": "During which dates could applicants submit documents for the HNGV 2026 vacancies?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 76.29,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD09",
+            "question": "How is the written test content weighted between general and specific subjects in vacancy CPI/14/2026?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 81.81,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD13",
+            "question": "How many positions and what salary does the General Doctor vacancy CPI/1/2026 offer?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 81.5,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HD15",
+            "question": "At which stage must the medical certificate be presented in vacancy CPI/2/2026?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 80.27,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HP01",
+            "question": "How are applications scored in the document assessment stage of vacancy CPI/1/2026, and what score is needed to pass it?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 84.94,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "HP02",
+            "question": "When must a candidate for vacancy CPI/1/2026 submit the 'Bom Comportamento' good-conduct certificate?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 78.8,
+            "grounded": false,
+            "correct": false
+        },
+        {
+            "id": "HP05",
+            "question": "On what date is an applicant's age measured to check the 20 to 55 limit in vacancy CPI/1/2026?",
+            "expected": "partially_supported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 79.45,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "HU01",
+            "question": "How many positions does vacancy CPI/3/2026 offer?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 76.89,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HU02",
+            "question": "How many candidates applied for vacancy CPI/1/2026?",
+            "expected": "unsupported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 79.83,
+            "grounded": false,
+            "correct": false
+        },
+        {
+            "id": "HU05",
+            "question": "What is the monthly salary of a Senior General Doctor at HNGV?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 73.05,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HX01",
+            "question": "Is the age range in the HNGV special-regime notices the same as the age range for public administration staff in the general rules?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 73.6,
+            "grounded": false,
+            "correct": true
+        },
+        {
+            "id": "HX02",
+            "question": "Is a candidate with exactly 60 points disqualified under Decree-Law 34/2008, and how does the HNGV notice treat a score of 60?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 70.3,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HX04",
+            "question": "Which language ability does Decree-Law 34/2008 require, and what do the HNGV notices require?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 67.79,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HX05",
+            "question": "How long does an excluded candidate have to appeal, and what do the HNGV 2026 notices say about appeals?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 73.4,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "HT01",
+            "question": "Are applications for the HNGV special-regime vacancies still open today?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 70.41,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "HT04",
+            "question": "Is the suspension of general-regime recruitment still in force today?",
+            "expected": "partially_supported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 70.98,
+            "grounded": true,
+            "correct": false
+        },
+        {
+            "id": "OS01",
+            "question": "What is the monthly salary of a civil servant in Timor-Leste?",
+            "expected": "unsupported",
+            "actual": "unsupported",
+            "coverage": 0.0,
+            "evidence_score": 70.31,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "DE04",
+            "question": "What is the minimum age requirement to apply for a permanent position in the Public Administration?",
+            "expected": "supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 85.15,
+            "grounded": true,
+            "correct": true
+        },
+        {
+            "id": "PE01",
+            "question": "What does the AI recruitment system do, and what salary should the selected candidate receive?",
+            "expected": "partially_supported",
+            "actual": "supported",
+            "coverage": 1.0,
+            "evidence_score": 72.16,
+            "grounded": true,
+            "correct": false
+        }
+    ]
+}
