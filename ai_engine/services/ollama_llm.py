@@ -1,3 +1,5 @@
+import os
+
 import requests
 
 from .model_config import (
@@ -40,6 +42,12 @@ def generate(prompt: str, json_mode: bool = True) -> str:
             "temperature": 0.1
         }
     }
+
+    # Reproducible runs (benchmarks): LLM_SEED / LLM_TEMPERATURE. Unset = unchanged behaviour.
+    if os.environ.get("LLM_SEED"):
+        payload["options"]["seed"] = int(os.environ["LLM_SEED"])
+    if os.environ.get("LLM_TEMPERATURE") is not None and os.environ.get("LLM_TEMPERATURE") != "":
+        payload["options"]["temperature"] = float(os.environ["LLM_TEMPERATURE"])
 
     if json_mode:
         payload["format"] = "json"

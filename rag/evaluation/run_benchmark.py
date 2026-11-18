@@ -1,7 +1,12 @@
 import json
+import os
 import sys
 from pathlib import Path
 
+
+# Reproducible benchmark runs: fixed seed and temperature 0 unless the caller overrides them.
+os.environ.setdefault("LLM_SEED", "42")
+os.environ.setdefault("LLM_TEMPERATURE", "0")
 
 # =========================================================
 # MAKE PROJECT ROOT IMPORTABLE

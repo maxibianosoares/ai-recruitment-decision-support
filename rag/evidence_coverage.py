@@ -1,4 +1,7 @@
 from rag.retriever import retriever
+import os
+
+from rag import claim_guards
 from ai_engine.services.local_llm import generate_json
 
 
@@ -65,53 +68,13 @@ class EvidenceCoverage:
     ]
 
     def is_current_claim(self, claim):
-
-        text = claim.lower()
-
-        return any(
-            term in text
-            for term in self.CURRENT_TERMS
-        )
+        return claim_guards.is_current_claim(claim)
 
     def has_historical_evidence(self, evidence):
-
-        text = evidence.lower()
-
-        return any(
-            marker in text
-            for marker in self.HISTORICAL_MARKERS
-        )
+        return claim_guards.has_historical_evidence(evidence)
 
     def temporal_guard(self, claim, evidence):
-
-        current_claim = self.is_current_claim(
-            claim
-        )
-
-        historical_evidence = self.has_historical_evidence(
-            evidence
-        )
-
-        # -----------------------------------------------------
-        # Current claim + clearly historical evidence
-        # -----------------------------------------------------
-
-        if current_claim and historical_evidence:
-
-            return {
-                "blocked": True,
-                "reason": (
-                    "The claim asks for a current or present fact, "
-                    "but the retrieved evidence contains historical "
-                    "or dated information and does not establish "
-                    "current validity."
-                )
-            }
-
-        return {
-            "blocked": False,
-            "reason": ""
-        }
+        return claim_guards.temporal_guard(claim, evidence)
 
     # =========================================================
     # VERIFY WHETHER EVIDENCE ACTUALLY SUPPORTS CLAIM
@@ -134,21 +97,37 @@ class EvidenceCoverage:
         # TEMPORAL GUARD
         # =====================================================
 
-        temporal_check = self.temporal_guard(
-            claim,
-            evidence
-        )
+        guard = claim_guards.run_guards(claim, evidence)
 
-        if temporal_check["blocked"]:
+        if guard["blocked"]:
 
             return {
                 "supported": False,
-                "reason": temporal_check["reason"]
+                "reason": guard["reason"],
+                "guard": guard["guard"]
             }
 
         # =====================================================
         # LLM VERIFICATION
         # =====================================================
+
+        allow_partial = os.environ.get("RAG_PARTIAL_CLAIMS", "0") == "1"
+
+        if allow_partial:
+            partial_rule = (
+                "PARTIAL RULE: If the claim has several parts (or asks for "
+                "several facts) and the evidence answers SOME but not ALL of "
+                "them, set supported=false and partial=true, and say which "
+                "part is missing. If the evidence answers none of it, set "
+                "supported=false and partial=false. Set partial=true only when "
+                "part of the answer is really present in the evidence."
+            )
+            json_format = (
+                '{"supported": true, "partial": false, "reason": ""}'
+            )
+        else:
+            partial_rule = ""
+            json_format = '{"supported": true, "reason": ""}'
 
         prompt = f"""
         You are an evidence verification component
@@ -340,12 +319,11 @@ class EvidenceCoverage:
         The evidence directly discusses AI's role relative to human
         recruiters, which is exactly the subject of the claim.
 
+        {partial_rule}
+
         Return ONLY valid JSON:
 
-        {{
-            "supported": true,
-            "reason": ""
-        }}
+        {json_format}
 
 
         CLAIM:
@@ -359,7 +337,8 @@ class EvidenceCoverage:
             prompt,
             default={
                 "supported": False,
-                "reason": "Evidence verification failed."
+                "reason": "Evidence verification failed.",
+                "verification_error": True
             }
         )
 
@@ -383,6 +362,14 @@ class EvidenceCoverage:
             "reason": result.get(
                 "reason",
                 ""
+            ),
+            "verification_error": bool(
+                result.get("verification_error", False)
+            ),
+            "partial": (
+                allow_partial
+                and not supported
+                and str(result.get("partial", False)).lower() == "true"
             )
         }
 
@@ -405,8 +392,9 @@ class EvidenceCoverage:
             # RETRIEVE
             # -------------------------------------------------
 
-            results = retriever.search(
+            results = claim_guards.retrieve_scoped(
                 claim_text,
+                retriever.search,
                 top_k=3
             )
 
@@ -457,6 +445,12 @@ class EvidenceCoverage:
 
                 supported = False
 
+                verification_error = False
+
+                partial = False
+
+                guard_name = ""
+
                 verification_reason = (
                     "Retrieved evidence is below "
                     "the minimum relevance threshold."
@@ -476,6 +470,21 @@ class EvidenceCoverage:
 
                 verification_reason = verification.get(
                     "reason",
+                    ""
+                )
+
+                verification_error = verification.get(
+                    "verification_error",
+                    False
+                )
+
+                partial = verification.get(
+                    "partial",
+                    False
+                )
+
+                guard_name = verification.get(
+                    "guard",
                     ""
                 )
 
@@ -504,45 +513,27 @@ class EvidenceCoverage:
                     best_text,
 
                 "verification_reason":
-                    verification_reason
+                    verification_reason,
+
+                "verification_error":
+                    verification_error,
+
+                "partial":
+                    partial,
+
+                "guard":
+                    guard_name
 
             })
 
-        # =====================================================
-        # COVERAGE
-        # =====================================================
-
-        total = len(
+        agg = claim_guards.aggregate_status(
             evaluated_claims
         )
 
-        supported_count = sum(
-            1
-            for item in evaluated_claims
-            if item["supported"]
-        )
-
-        coverage = (
-            supported_count / total
-            if total
-            else 0
-        )
-
-        # =====================================================
-        # STATUS
-        # =====================================================
-
-        if supported_count == 0:
-
-            status = "unsupported"
-
-        elif supported_count == total:
-
-            status = "supported"
-
-        else:
-
-            status = "partially_supported"
+        total = agg["total_claims"]
+        supported_count = agg["supported_claims"]
+        coverage = agg["coverage"]
+        status = agg["status"]
 
         return {
 

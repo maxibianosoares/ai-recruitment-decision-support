@@ -151,6 +151,15 @@ class Sets(_CleanBenchEnv):
         self.assertEqual(n["combined"], 80)
         self.assertEqual(n["all"], 80 + n["dynamic"])
 
+    def test_quick_set_is_20_valid_unique_ids(self):
+        ids = bs.QUICK_IDS
+        self.assertEqual(len(ids), 20)
+        self.assertEqual(len(ids), len(set(ids)))
+        have = {q["id"] for q in bs.load_set("combined")}
+        self.assertTrue(set(ids) <= have)
+        os.environ["BENCHMARK_IDS"] = "quick"
+        self.assertEqual([q["id"] for q in bs.load_set("combined")], ids)
+
     def test_ids_unique_across_all(self):
         ids = [q["id"] for q in bs.load_set("all")]
         self.assertEqual(len(ids), len(set(ids)))

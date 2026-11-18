@@ -57,13 +57,13 @@ def _load_set_raw(name):
 # BENCHMARK_TAG=before|after adds a suffix so two runs never overwrite each other.
 # Quick runs always write to a *_quick*.json file, never to the real results file.
 QUICK_IDS = [
-    "HD01", "HD07", "HD09", "HD13",   # direct, answer is in one notice
-    "HP01", "HP05",                   # partial: criteria / reference date not stated
-    "HU01", "HU02",                   # unsupported: unprocessed vacancy, no candidate data
-    "HX01", "HX02", "HX05",           # cross-source: notice vs statute
-    "HT01",                           # temporal
-    "OS01", "DE04",                   # old-baseline controls: do they change once the corpus is added?
-]
+    "HD01", "HD07", "HD09", "HD13", "HD15",   # direct: answer is in one notice (5)
+    "HP01", "HP02", "HP05",                   # partial: criteria / timing / reference date not stated (3)
+    "HU01", "HU02", "HU05",                   # unsupported: unprocessed vacancy, no candidate data, other grade (3)
+    "HX01", "HX02", "HX04", "HX05",           # cross-source: notice vs statute (4)
+    "HT01", "HT04",                           # temporal (2)
+    "OS01", "DE04", "PE01",                   # old-baseline controls: do they change once the corpus is added? (3)
+]   # 20 questions: keep <= 20 so a run stays short
 
 
 def _wanted_ids():

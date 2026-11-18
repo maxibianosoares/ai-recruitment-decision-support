@@ -1,4 +1,5 @@
 from ai_engine.services.local_llm import generate_json
+from rag import claim_guards
 
 
 class QuestionDecomposer:
@@ -41,7 +42,9 @@ STRICT RULES:
    current, currently, right now, today, as of [date],
    presently, latest, existing, exact, specific,
    precise, minimum, maximum, at least, at most, named
-   persons, dates, locations, and numeric constraints.
+   persons, dates, locations, numeric constraints, grades
+   or ranks (senior, junior, chief, deputy), and codes
+   (for example a vacancy code such as CPI/3/2026).
    Dropping these words changes what the claim is
    actually asking and can cause a claim about the
    CURRENT state of a fact to be silently answered with
@@ -57,6 +60,11 @@ STRICT RULES:
     statement is not itself phrased as a question. Do
     NOT collapse this pattern into a single claim that
     only captures the specific question.
+
+11. Every claim must be a complete question or statement.
+    NEVER output a bare phrase or fragment (for example
+    "at HNGV" or "for staff in the general rules") as a claim.
+    Keep such phrases inside the claim they belong to.
 
 Examples:
 
@@ -212,7 +220,10 @@ Question:
                 }
             ]
 
-        return valid_claims
+        return claim_guards.clean_claims(
+            valid_claims,
+            question
+        )
 
 
 question_decomposer = QuestionDecomposer()
